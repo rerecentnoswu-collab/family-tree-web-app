@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Users, Edit3, MessageSquare, Clock, CheckCircle, AlertTriangle, GitBranch, Calendar, Search, Filter, UserPlus, Settings, Bell, Share2, Lock, Eye, EyeOff } from 'lucide-react';
+import { Person } from '../types/Person';
 
 interface ResearchTask {
   id: string;
@@ -59,7 +60,7 @@ interface DiscussionThread {
   assignedTo?: string[];
 }
 
-export function CollaborativeResearch({ persons }: { persons: any[] }) {
+export function CollaborativeResearch({ persons }: { persons: Person[] }) {
   const [activeTab, setActiveTab] = useState<'tasks' | 'users' | 'changes' | 'discussions'>('tasks');
   const [researchTasks, setResearchTasks] = useState<ResearchTask[]>([]);
   const [researchUsers, setResearchUsers] = useState<ResearchUser[]>([]);

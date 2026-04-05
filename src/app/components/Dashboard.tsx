@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Person } from '../types/Person';
 import { 
   Users, 
   GitBranch, 
@@ -46,7 +47,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardProps {
-  persons: any[];
+  persons: Person[];
   onPersonAdded: () => void;
 }
 

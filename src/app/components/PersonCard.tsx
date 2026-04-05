@@ -1,19 +1,8 @@
 import { useState } from 'react';
 import { Users, Sparkles, Edit2 } from 'lucide-react';
 import { updatePerson, findPotentialParents, type Person as DBPerson } from '../../../utils/supabase/client';
+import { Person } from '../types/Person';
 import { RelationshipEditor } from './RelationshipEditor';
-
-interface Person {
-  id: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  birthday: string;
-  birthplace: string;
-  motherId?: string;
-  fatherId?: string;
-  gender?: 'male' | 'female' | 'other';
-}
 
 interface ParentMatch {
   personId: string;
@@ -132,7 +121,7 @@ export function PersonCard({ person, allPersons, onUpdate, highlighted = false }
     }
   };
 
-  const age = new Date().getFullYear() - new Date(person.birthday).getFullYear();
+  const age = person.birthday ? new Date().getFullYear() - new Date(person.birthday).getFullYear() : null;
 
   return (
     <div
@@ -147,7 +136,11 @@ export function PersonCard({ person, allPersons, onUpdate, highlighted = false }
             {person.firstName} {person.middleName && `${person.middleName} `}{person.lastName}
           </h3>
           <p className="text-sm text-gray-500 mt-1">
-            Born {new Date(person.birthday).toLocaleDateString()} ({age} years old)
+            {person.birthday ? (
+              <>Born {new Date(person.birthday).toLocaleDateString()} {age && `(${age} years old)`}</>
+            ) : (
+              'Birth date not specified'
+            )}
           </p>
           <p className="text-sm text-gray-500">{person.birthplace}</p>
         </div>

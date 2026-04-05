@@ -5,7 +5,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('⚠️ Supabase credentials missing!');
+  console.error(' Supabase credentials missing!');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -16,8 +16,8 @@ export interface Person {
   first_name: string;
   middle_name?: string;
   last_name: string;
-  birthday: string;
-  birthplace: string;
+  birthday?: string;
+  birthplace?: string;
   mother_id?: string;
   father_id?: string;
   gender?: 'male' | 'female' | 'other';
@@ -118,7 +118,7 @@ export async function deletePerson(id: string) {
     .from('persons')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id); // ✅ Ensure user owns the record
+    .eq('user_id', user.id); // Ensure user owns the record
   
   if (error) throw error;
 }
@@ -127,11 +127,21 @@ export async function deletePerson(id: string) {
 export async function findPotentialParents(person: Person) {
   const allPersons = await getPersons();
   
+  // Skip if person doesn't have a birthday
+  if (!person.birthday) {
+    return {
+      suggestedMother: undefined,
+      suggestedFather: undefined,
+      allMatches: []
+    };
+  }
+  
   // Calculate a rough birth year from birthday
   const personBirthYear = new Date(person.birthday).getFullYear();
   
   // Filter potential parents (should be born 15-60 years before the person)
   const potentialParents = allPersons.filter(p => {
+    if (!p.birthday) return false; // Skip if no birthday
     const parentBirthYear = new Date(p.birthday).getFullYear();
     const ageDiff = personBirthYear - parentBirthYear;
     return ageDiff >= 15 && ageDiff <= 60 && p.id !== person.id;
@@ -150,18 +160,21 @@ export async function findPotentialParents(person: Person) {
     }
     
     // Birthplace proximity (same city/region)
-    if (parent.birthplace.toLowerCase().includes(person.birthplace.toLowerCase()) ||
-        person.birthplace.toLowerCase().includes(parent.birthplace.toLowerCase())) {
+    if (parent.birthplace && person.birthplace &&
+        (parent.birthplace.toLowerCase().includes(person.birthplace.toLowerCase()) ||
+         person.birthplace.toLowerCase().includes(parent.birthplace.toLowerCase()))) {
       score += 30;
     }
     
     // Ideal age gap (20-35 years gets highest score)
-    const parentBirthYear = new Date(parent.birthday).getFullYear();
-    const ageDiff = personBirthYear - parentBirthYear;
-    if (ageDiff >= 20 && ageDiff <= 35) {
-      score += 20;
-    } else if (ageDiff >= 15 && ageDiff <= 45) {
-      score += 10;
+    if (parent.birthday) {
+      const parentBirthYear = new Date(parent.birthday).getFullYear();
+      const ageDiff = personBirthYear - parentBirthYear;
+      if (ageDiff >= 20 && ageDiff <= 35) {
+        score += 20;
+      } else if (ageDiff >= 15 && ageDiff <= 45) {
+        score += 10;
+      }
     }
     
     return { parent, score };

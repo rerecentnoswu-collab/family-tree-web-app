@@ -1,22 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Brain, Users, MapPin, Calendar, Search, AlertTriangle, CheckCircle, Clock, TrendingUp, Network, Heart, GitBranch } from 'lucide-react';
-
-interface Person {
-  id: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  birthday: string;
-  birthplace: string;
-  motherId?: string;
-  fatherId?: string;
-  gender?: 'male' | 'female' | 'other';
-  occupation?: string;
-  deathDate?: string;
-  deathPlace?: string;
-  spouseIds?: string[];
-  childrenIds?: string[];
-}
+import { Person } from '../types/Person';
 
 interface ComplexRelationship {
   id: string;

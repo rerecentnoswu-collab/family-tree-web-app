@@ -12,18 +12,7 @@ import ReactFlow, {
   Handle
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
-interface Person {
-  id: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  birthday: string;
-  birthplace: string;
-  motherId?: string;
-  fatherId?: string;
-  gender?: 'male' | 'female' | 'other';
-}
+import { Person } from '../types/Person';
 
 interface FamilyTreeProps {
   persons: Person[];
@@ -38,7 +27,7 @@ interface NodeData {
 // Custom node component for better visualization
 const PersonNode = memo(({ data }: NodeProps<NodeData>) => {
   const { person, onPersonClick } = data;
-  const age = new Date().getFullYear() - new Date(person.birthday).getFullYear();
+  const age = person.birthday ? new Date().getFullYear() - new Date(person.birthday).getFullYear() : null;
 
   const genderColors = {
     male: { bg: '#3B82F6', border: '#2563EB' },
@@ -46,7 +35,7 @@ const PersonNode = memo(({ data }: NodeProps<NodeData>) => {
     other: { bg: '#8B5CF6', border: '#7C3AED' }
   };
 
-  const colors = genderColors[person.gender || 'other'];
+  const colors = genderColors[person.gender as keyof typeof genderColors] || genderColors.other;
 
   return (
     <div

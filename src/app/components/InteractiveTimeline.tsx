@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Calendar, Clock, MapPin, Users, Heart, AlertTriangle, Globe, ZoomIn, ZoomOut, Play, Pause, RotateCcw, Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Person } from '../types/Person';
 
 interface TimelineEvent {
   id: string;
@@ -28,16 +29,6 @@ interface HistoricalEvent {
   color: string;
 }
 
-interface Person {
-  id: string;
-  firstName: string;
-  lastName: string;
-  birthday: string;
-  deathDate?: string;
-  birthplace: string;
-  events: TimelineEvent[];
-}
-
 export function InteractiveTimeline({ persons }: { persons: Person[] }) {
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [historicalEvents, setHistoricalEvents] = useState<HistoricalEvent[]>([]);
@@ -57,19 +48,21 @@ export function InteractiveTimeline({ persons }: { persons: Person[] }) {
 
     persons.forEach(person => {
       // Birth event
-      events.push({
-        id: `birth-${person.id}`,
-        type: 'birth',
-        title: `${person.firstName} ${person.lastName} Born`,
-        date: person.birthday,
-        year: new Date(person.birthday).getFullYear(),
-        description: `Born in ${person.birthplace}`,
-        personIds: [person.id],
-        location: person.birthplace,
-        importance: 'high',
-        category: 'personal',
-        color: '#10b981'
-      });
+      if (person.birthday) {
+        events.push({
+          id: `birth-${person.id}`,
+          type: 'birth',
+          title: `${person.firstName} ${person.lastName} Born`,
+          date: person.birthday,
+          year: new Date(person.birthday).getFullYear(),
+          description: `Born in ${person.birthplace || 'unknown location'}`,
+          personIds: [person.id],
+          location: person.birthplace,
+          importance: 'high',
+          category: 'personal',
+          color: '#10b981'
+        });
+      }
 
       // Death event
       if (person.deathDate) {
@@ -79,7 +72,7 @@ export function InteractiveTimeline({ persons }: { persons: Person[] }) {
           title: `${person.firstName} ${person.lastName} Passed Away`,
           date: person.deathDate,
           year: new Date(person.deathDate).getFullYear(),
-          description: `Died at age ${new Date(person.deathDate).getFullYear() - new Date(person.birthday).getFullYear()}`,
+          description: `Died at age ${person.birthday ? new Date(person.deathDate).getFullYear() - new Date(person.birthday).getFullYear() : 'unknown'}`,
           personIds: [person.id],
           importance: 'high',
           category: 'personal',
@@ -91,7 +84,7 @@ export function InteractiveTimeline({ persons }: { persons: Person[] }) {
     // Add family events (marriages, migrations, etc.)
     persons.forEach(person => {
       // Marriage events (simplified - would need spouse data)
-      if (Math.random() > 0.7) { // Mock data
+      if (person.birthday && Math.random() > 0.7) { // Mock data
         const marriageYear = new Date(person.birthday).getFullYear() + 20 + Math.floor(Math.random() * 10);
         events.push({
           id: `marriage-${person.id}`,
@@ -109,7 +102,7 @@ export function InteractiveTimeline({ persons }: { persons: Person[] }) {
       }
 
       // Migration events
-      if (Math.random() > 0.8) { // Mock data
+      if (person.birthday && Math.random() > 0.8) { // Mock data
         const migrationYear = new Date(person.birthday).getFullYear() + 25 + Math.floor(Math.random() * 20);
         events.push({
           id: `migration-${person.id}`,

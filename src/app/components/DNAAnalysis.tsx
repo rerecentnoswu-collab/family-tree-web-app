@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dna, Users, Globe, Heart, AlertTriangle, TrendingUp, MapPin, Calendar, Filter, Search, Download, Upload, Shield, Activity } from 'lucide-react';
+import { Person } from '../types/Person';
 
 interface EthnicityRegion {
   id: string;
@@ -51,7 +52,7 @@ interface HealthInsight {
   privacyLevel: 'public' | 'private' | 'restricted';
 }
 
-export function DNAAnalysis({ persons }: { persons: any[] }) {
+export function DNAAnalysis({ persons }: { persons: Person[] }) {
   const [ethnicityResults, setEthnicityResults] = useState<EthnicityRegion[]>([]);
   const [dnaMatches, setDnaMatches] = useState<DNAMatch[]>([]);
   const [geneticTraits, setGeneticTraits] = useState<GeneticTrait[]>([]);
@@ -130,7 +131,7 @@ export function DNAAnalysis({ persons }: { persons: any[] }) {
         id: 'match-1',
         matchId: 'DNA123456',
         name: 'Sarah Johnson',
-        relationshipType: 'first_cousin',
+        relationshipType: 'cousin',
         sharedCentimorgans: 850,
         sharedSegments: 28,
         longestSegment: 45,
