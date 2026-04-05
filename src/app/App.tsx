@@ -103,7 +103,7 @@ function AppContent() {
         <div 
           className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage: 'url(/family-header-bg.png)',
+            backgroundImage: 'url(/family-viewport-bg.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',

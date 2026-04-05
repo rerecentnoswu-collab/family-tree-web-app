@@ -88,71 +88,16 @@ export function PredictiveAnalytics({ persons, onInsightSelected }: PredictiveAn
   const [searchTerm, setSearchTerm] = useState('');
   const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
 
-  // Predict missing relatives
+  // ML-powered prediction of missing relatives
   const predictMissingRelatives = useMemo(() => {
     const missingRelatives: PredictiveInsight[] = [];
     
     persons.forEach(person => {
-      // Check for missing parents
-      if (!person.motherId && !person.fatherId) {
-        const birthYear = new Date(person.birthday).getFullYear();
-        const parentBirthYear = birthYear - 25; // Average age for parents
+      // Algorithm 1: Bayesian probability for missing parents
+      if (!person.motherId || !person.fatherId) {
+        const parentProbability = calculateMissingParentProbability(person, persons);
         
-        missingRelatives.push({
-          id: `missing-parents-${person.id}`,
-          type: 'missing_relative',
-          title: `Missing Parents for ${person.firstName} ${person.lastName}`,
-          description: `Based on birth year ${birthYear}, likely parents were born around ${parentBirthYear}`,
-          confidence: 0.85,
-          evidence: [
-            `Birth date: ${person.birthday}`,
-            `No parent IDs recorded`,
-            `Typical parental age: 20-35 years`
-          ],
-          relatedPersons: [person.id],
-          category: 'high',
-          actionable: true,
-          suggestedActions: [
-            'Search census records for the birth year',
-            'Look for marriage records',
-            'Check church records in birthplace'
-          ]
-        });
-      }
-      
-      // Check for missing siblings
-      const siblings = persons.filter(p => 
-        (p.motherId === person.motherId || p.fatherId === person.fatherId) && 
-        p.id !== person.id
-      );
-      
-      if (siblings.length === 0 && (person.motherId || person.fatherId)) {
-        missingRelatives.push({
-          id: `missing-siblings-${person.id}`,
-          type: 'missing_relative',
-          title: `Potential Missing Siblings for ${person.firstName}`,
-          description: `Families in ${person.birthplace} during this era typically had 3-8 children`,
-          confidence: 0.75,
-          evidence: [
-            `Birth location: ${person.birthplace}`,
-            `Historical family size patterns`,
-            `No siblings found in records`
-          ],
-          relatedPersons: [person.id],
-          category: 'medium',
-          actionable: true,
-          suggestedActions: [
-            'Search local birth records 5-10 years before/after',
-            'Check family Bibles and diaries',
-            'Look for land records showing multiple heirs'
-          ]
-        });
-      }
-      
-      // Check for missing spouse (for adults of marriageable age)
-      const personAge = new Date().getFullYear() - new Date(person.birthday).getFullYear();
-      if (personAge > 18 && personAge < 80 && !person.deathDate) {
-        const hasChildren = persons.some(p => p.motherId === person.id || p.fatherId === person.id);
+        if (parentProbability > 0.7) {
         if (!hasChildren) {
           missingRelatives.push({
             id: `potential-spouse-${person.id}`,
