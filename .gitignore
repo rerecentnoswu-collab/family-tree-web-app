@@ -1,0 +1,11 @@
+﻿# Security: Never commit these files
+.env
+.env.local
+.env.*.local
+utils/supabase/info.tsx
+
+.vercel
+
+node_modules/
+dist/
+.vite/
