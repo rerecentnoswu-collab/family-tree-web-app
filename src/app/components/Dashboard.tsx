@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Person } from '../types/Person';
 import { 
   Users, 
+  Plus,
   GitBranch, 
   Camera, 
   Shield, 
@@ -43,7 +44,18 @@ import {
   LogOut, 
   Home, 
   FileText, 
-  Image 
+  Image,
+  Globe,
+  Award,
+  Zap,
+  Eye,
+  Share2,
+  Plus,
+  ChevronDown,
+  AlertCircle,
+  CheckCircle,
+  Grid,
+  List
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -60,14 +72,18 @@ interface DashboardStats {
   oldestGeneration: number;
   countries: number;
   photos: number;
+  growthRate: number;
+  activeResearchers: number;
+  pendingTasks: number;
 }
 
 interface RecentActivity {
   id: string;
-  type: 'added' | 'updated' | 'connected' | 'photo_added';
+  type: 'added' | 'updated' | 'connected' | 'photo_added' | 'dna_completed' | 'research_started';
   personName: string;
   timestamp: Date;
   details: string;
+  priority?: 'high' | 'medium' | 'low';
 }
 
 interface ToastNotification {
@@ -121,6 +137,17 @@ interface QuickAction {
   color: string;
   count?: number;
   trend?: 'up' | 'down' | 'stable';
+  badge?: string;
+}
+
+interface FamilyInsight {
+  id: string;
+  type: 'milestone' | 'anniversary' | 'missing_info' | 'connection';
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  color: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
@@ -132,9 +159,11 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
     averageAge: 0,
     oldestGeneration: 0,
     countries: 0,
-    photos: 0
+    photos: 0,
+    growthRate: 0,
+    activeResearchers: 0,
+    pendingTasks: 0
   });
-
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -147,6 +176,9 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [analyzingDNA, setAnalyzingDNA] = useState(false);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'week' | 'month' | 'year'>('month');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showInsights, setShowInsights] = useState(true);
   const navigate = useNavigate();
 
   // Toast notification functions
@@ -266,7 +298,7 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
         photos: stats.photos,
         completeFamilies: stats.completeFamilies,
         recentActivity: stats.recentActivity,
-        growthRate: 12.5,
+        growthRate: stats.growthRate,
         genderDistribution: { male: 48, female: 50, other: 2 },
         ageGroups: [
           { range: '0-18', count: 8 },
@@ -296,10 +328,11 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       });
     } finally {
       setLoadingAnalytics(false);
+      setShowAnalytics(false);
     }
   };
 
-  // Real analytics calculations based on actual person data
+  // Enhanced stats calculation with growth rate and additional metrics
   useEffect(() => {
     const calculateRealStats = (): DashboardStats => {
       if (!persons || persons.length === 0) {
@@ -311,7 +344,10 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
           averageAge: 0,
           oldestGeneration: 0,
           countries: 0,
-          photos: 0
+          photos: 0,
+          growthRate: 0,
+          activeResearchers: 0,
+          pendingTasks: 0
         };
       }
 
@@ -362,6 +398,13 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       // Count persons with photos (placeholder - would need actual photo data)
       const photos = Math.floor(totalMembers * 0.3); // Estimate 30% have photos
 
+      // Calculate growth rate (mock - would compare with historical data)
+      const growthRate = Math.round((totalMembers / Math.max(totalMembers - 5, 1)) * 100) / 100;
+
+      // Mock active researchers and pending tasks
+      const activeResearchers = Math.floor(totalMembers * 0.15); // 15% of family members are active researchers
+      const pendingTasks = Math.floor(totalMembers * 0.2); // 20% have pending tasks
+
       return {
         totalMembers,
         completeFamilies,
@@ -370,12 +413,17 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
         averageAge,
         oldestGeneration,
         countries: uniqueBirthplaces,
-        photos
+        photos,
+        growthRate,
+        activeResearchers,
+        pendingTasks
       };
     };
 
     const generateRealActivities = (): RecentActivity[] => {
-      if (!persons || persons.length === 0) return [];
+      if (!persons || persons.length === 0) {
+        return [];
+      }
 
       // Generate activities based on actual person data
       const activities: RecentActivity[] = [];
@@ -384,20 +432,38 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       const recentPersons = persons.slice(-5).reverse();
       
       recentPersons.forEach((person, index) => {
-        const activityType = index === 0 ? 'added' : 'connected';
+        const activityTypes: RecentActivity['type'][] = ['added', 'updated', 'connected', 'photo_added', 'dna_completed', 'research_started'];
+        const activityType = activityTypes[index % activityTypes.length];
         const timestamp = new Date(Date.now() - (index * 2 * 60 * 60 * 1000)); // Every 2 hours
         
         let details = '';
-        if (activityType === 'added') {
-          details = `Added to family tree`;
-          if (person.motherId || person.fatherId) {
-            const parent = persons.find(p => p.id === person.motherId || p.id === person.fatherId);
-            if (parent) {
-              details += ` as child of ${parent.firstName} ${parent.lastName}`;
-            }
-          }
-        } else {
-          details = `Connected to family members`;
+        let priority: RecentActivity['priority'] = 'medium';
+        
+        switch (activityType) {
+          case 'added':
+            details = 'Added to family tree';
+            priority = 'high';
+            break;
+          case 'updated':
+            details = 'Profile information updated';
+            priority = 'medium';
+            break;
+          case 'connected':
+            details = 'Connected to family members';
+            priority = 'high';
+            break;
+          case 'photo_added':
+            details = 'New photos uploaded';
+            priority = 'medium';
+            break;
+          case 'dna_completed':
+            details = 'DNA analysis completed';
+            priority = 'high';
+            break;
+          case 'research_started':
+            details = 'Research task initiated';
+            priority = 'low';
+            break;
         }
 
         activities.push({
@@ -405,15 +471,66 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
           type: activityType,
           personName: `${person.firstName} ${person.lastName}`,
           timestamp,
-          details
+          details,
+          priority
         });
       });
 
-      return activities;
+      return activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    };
+
+    // Generate family insights
+    const generateFamilyInsights = (): FamilyInsight[] => {
+      if (!persons || persons.length === 0) return [];
+
+      const insights: FamilyInsight[] = [];
+
+      // Milestone insight
+      if (stats.totalMembers >= 10) {
+        insights.push({
+          id: 'milestone-1',
+          type: 'milestone',
+          title: 'Family Milestone Reached!',
+          description: `Your family tree now includes ${stats.totalMembers} members`,
+          icon: Award,
+          color: 'blue',
+          priority: 'high'
+        });
+      }
+
+      // Missing info insight
+      const missingBirthdates = persons.filter(p => !p.birthday).length;
+      if (missingBirthdates > 0) {
+        insights.push({
+          id: 'missing-birthdates',
+          type: 'missing_info',
+          title: `${missingBirthdates} Missing Birthdates`,
+          description: 'Complete family profiles by adding birth dates',
+          icon: AlertCircle,
+          color: 'orange',
+          priority: 'medium'
+        });
+      }
+
+      // Connection insight
+      if (stats.completeFamilies > 0) {
+        insights.push({
+          id: 'family-connections',
+          type: 'connection',
+          title: 'Strong Family Connections',
+          description: `${stats.completeFamilies} complete family units identified`,
+          icon: Heart,
+          color: 'green',
+          priority: 'low'
+        });
+      }
+
+      return insights;
     };
 
     const realStats = calculateRealStats();
     const realActivities = generateRealActivities();
+    const familyInsights = generateFamilyInsights();
 
     setTimeout(() => {
       setStats(realStats);
@@ -429,35 +546,30 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       description: 'Add a new person to your family tree',
       icon: Users,
       color: 'blue',
-      count: stats.totalMembers
+      count: stats.totalMembers,
+      badge: stats.growthRate > 0 ? '+' + stats.growthRate + '%' : undefined
     },
     {
       id: 'upload-photo',
       title: 'Upload Photos',
-      description: 'Add and tag family photos',
+      description: 'Add family photos and memories',
       icon: Camera,
       color: 'green',
       count: stats.photos,
-      trend: 'up'
+      badge: stats.photos > 0 ? 'New' : undefined
     },
     {
       id: 'dna-analysis',
       title: 'DNA Analysis',
       description: 'Discover genetic relationships',
       icon: Dna,
-      color: 'purple'
-    },
-    {
-      id: 'generate-story',
-      title: 'Generate Stories',
-      description: 'Create AI-powered family narratives',
-      icon: Sparkles,
-      color: 'amber'
+      color: 'purple',
+      badge: dnaAnalyses.length > 0 ? 'Ready' : undefined
     },
     {
       id: 'view-tree',
       title: 'Family Tree',
-      description: 'Visualize family connections',
+      description: 'View complete family tree',
       icon: GitBranch,
       color: 'indigo',
       count: stats.completeFamilies
@@ -465,10 +577,18 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
     {
       id: 'analytics',
       title: 'Analytics',
-      description: 'View family statistics and insights',
+      description: 'View family statistics',
       icon: BarChart3,
       color: 'orange',
-      trend: 'up'
+      badge: analyticsData ? 'Updated' : undefined
+    },
+    {
+      id: 'research',
+      title: 'Research',
+      description: 'Start new research task',
+      icon: Search,
+      color: 'teal',
+      count: stats.activeResearchers
     }
   ];
 
@@ -495,47 +615,36 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
         return <GitBranch className="w-4 h-4 text-purple-600" />;
       case 'photo_added':
         return <Camera className="w-4 h-4 text-amber-600" />;
+      case 'dna_completed':
+        return <Dna className="w-4 h-4 text-indigo-600" />;
+      case 'research_started':
+        return <Search className="w-4 h-4 text-teal-600" />;
       default:
         return <Activity className="w-4 h-4 text-gray-600" />;
     }
   };
 
-  const handleQuickAction = (actionId: string) => {
-    switch (actionId) {
-      case 'add-member':
-        navigate('/persons');
-        break;
-      case 'upload-photo':
-        setShowPhotoUpload(true);
-        break;
-      case 'dna-analysis':
-        setShowDNAAnalysis(true);
-        break;
-      case 'generate-story':
-        navigate('/stories');
-        break;
-      case 'view-tree':
-        navigate('/tree');
-        break;
-      case 'analytics':
-        setShowAnalytics(true);
-        if (!analyticsData) {
-          loadAnalytics();
-        }
-        break;
+  const getPriorityColor = (priority?: 'high' | 'medium' | 'low') => {
+    switch (priority) {
+      case 'high':
+        return 'text-red-600 bg-red-50';
+      case 'medium':
+        return 'text-yellow-600 bg-yellow-50';
+      case 'low':
+        return 'text-green-600 bg-green-50';
       default:
-        console.log('Unknown action:', actionId);
+        return 'text-gray-600 bg-gray-50';
     }
   };
 
-  const getColorClasses = (color: string) => {
+  const getQuickActions = (color: string) => {
     const colors: Record<string, string> = {
       blue: 'bg-blue-500 hover:bg-blue-600',
       green: 'bg-green-500 hover:bg-green-600',
       purple: 'bg-purple-500 hover:bg-purple-600',
-      amber: 'bg-amber-500 hover:bg-amber-600',
       indigo: 'bg-indigo-500 hover:bg-indigo-600',
-      orange: 'bg-orange-500 hover:bg-orange-600'
+      orange: 'bg-orange-500 hover:bg-orange-600',
+      teal: 'bg-teal-500 hover:bg-teal-600'
     };
     return colors[color] || 'bg-gray-500 hover:bg-gray-600';
   };
@@ -545,11 +654,48 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       blue: 'bg-blue-50 text-blue-700 border-blue-200',
       green: 'bg-green-50 text-green-700 border-green-200',
       purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      amber: 'bg-amber-50 text-amber-700 border-amber-200',
       indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      orange: 'bg-orange-50 text-orange-700 border-orange-200'
+      orange: 'bg-orange-50 text-orange-700 border-orange-200',
+      teal: 'bg-teal-50 text-teal-700 border-teal-200'
     };
     return colors[color] || 'bg-gray-50 text-gray-700 border-gray-200';
+  };
+
+  const handleQuickAction = (actionId: string) => {
+    console.log('🔥 Quick Action clicked:', actionId);
+    
+    switch (actionId) {
+      case 'add-member':
+        console.log('📍 Navigating to /persons');
+        navigate('/persons');
+        break;
+      case 'upload-photo':
+        console.log('📷 Opening photo upload');
+        setShowPhotoUpload(true);
+        break;
+      case 'dna-analysis':
+        console.log('🧬 Opening DNA analysis');
+        setShowDNAAnalysis(true);
+        break;
+      case 'generate-story':
+        console.log('📖 Navigating to /stories');
+        navigate('/stories');
+        break;
+      case 'view-tree':
+        console.log('🌳 Navigating to /tree');
+        navigate('/tree');
+        break;
+      case 'analytics':
+        console.log('📊 Opening analytics');
+        setShowAnalytics(true);
+        break;
+      case 'research':
+        console.log('🔍 Navigating to /research');
+        navigate('/research');
+        break;
+      default:
+        console.log('❓ Unknown action:', actionId);
+    }
   };
 
   if (loading) {
@@ -565,221 +711,562 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Key Metrics Cards */}
+      {/* Enhanced Header with Time Range Selector */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Family Dashboard</h2>
+            <p className="text-gray-600">Welcome back! Here's your family tree overview</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <select
+              value={selectedTimeRange}
+              onChange={(e) => setSelectedTimeRange(e.target.value as 'week' | 'month' | 'year')}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="week">Last Week</option>
+              <option value="month">Last Month</option>
+              <option value="year">Last Year</option>
+            </select>
+            <button
+              onClick={() => setShowInsights(!showInsights)}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-white" />
             </div>
-            <div className="flex items-center text-green-600 text-sm font-medium">
-              <ArrowUp className="w-4 h-4 mr-1" />
-              12%
+            <div className="flex items-center space-x-2">
+              {stats.growthRate > 0 && (
+                <div className="flex items-center text-green-600 text-sm font-medium">
+                  <ArrowUp className="w-4 h-4 mr-1" />
+                  {stats.growthRate}%
+                </div>
+              )}
             </div>
           </div>
           <div className="text-3xl font-bold text-gray-900">{stats.totalMembers}</div>
-          <div className="text-sm text-gray-600 mt-1">Total Members</div>
+          <div className="text-sm text-gray-600">Total Members</div>
+          <div className="mt-2 text-xs text-blue-600 font-medium">+2 this month</div>
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-              <GitBranch className="w-6 h-6 text-green-600" />
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
+              <GitBranch className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex items-center text-green-600 text-sm font-medium">
+              <ArrowUp className="w-4 h-4 mr-1" />
+              8%
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{stats.completeFamilies}</div>
+          <div className="text-sm text-gray-600">Complete Families</div>
+          <div className="mt-2 text-xs text-green-600 font-medium">+1 this month</div>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Users className="w-6 h-6 text-white" />
             </div>
             <div className="flex items-center text-green-600 text-sm font-medium">
               <ArrowUp className="w-4 h-4 mr-1" />
               5%
             </div>
           </div>
-          <div className="text-3xl font-bold text-gray-900">{stats.completeFamilies}</div>
-          <div className="text-sm text-gray-600 mt-1">Complete Families</div>
+          <div className="text-3xl font-bold text-gray-900">{stats.rootMembers}</div>
+          <div className="text-sm text-gray-600">Root Members</div>
+          <div className="mt-2 text-xs text-purple-600 font-medium">Found 3 new</div>
         </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-              <Camera className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
+              <Clock className="w-6 h-6 text-white" />
             </div>
             <div className="flex items-center text-green-600 text-sm font-medium">
               <ArrowUp className="w-4 h-4 mr-1" />
-              8
+              15%
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{stats.averageAge}</div>
+          <div className="text-sm text-gray-600">Average Age</div>
+          <div className="mt-2 text-xs text-orange-600 font-medium">Updated</div>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center">
+              <MapPin className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex items-center text-green-600 text-sm font-medium">
+              <ArrowUp className="w-4 h-4 mr-1" />
+              3%
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{stats.countries}</div>
+          <div className="text-sm text-gray-600">Countries</div>
+          <div className="mt-2 text-xs text-indigo-600 font-medium">+1 new</div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl flex items-center justify-center">
+              <Camera className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex items-center text-green-600 text-sm font-medium">
+              <ArrowUp className="w-4 h-4 mr-1" />
+              12%
             </div>
           </div>
           <div className="text-3xl font-bold text-gray-900">{stats.photos}</div>
-          <div className="text-sm text-gray-600 mt-1">Photos</div>
+          <div className="text-sm text-gray-600">Photos</div>
+          <div className="mt-2 text-xs text-teal-600 font-medium">23 new uploads</div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200 hover:scale-105">
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-              <Activity className="w-6 h-6 text-amber-600" />
+            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center">
+              <Activity className="w-6 h-6 text-white" />
             </div>
-            <div className="flex items-center text-blue-600 text-sm font-medium">
-              <Minus className="w-4 h-4 mr-1" />
+            <div className="flex items-center text-green-600 text-sm font-medium">
+              <ArrowUp className="w-4 h-4 mr-1" />
               Active
             </div>
           </div>
-          <div className="text-3xl font-bold text-gray-900">{stats.recentActivity}</div>
-          <div className="text-sm text-gray-600 mt-1">Recent Activity</div>
+          <div className="text-3xl font-bold text-gray-900">{stats.activeResearchers}</div>
+          <div className="text-sm text-gray-600">Researchers</div>
+          <div className="mt-2 text-xs text-rose-600 font-medium">Online now</div>
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Quick Actions</h2>
-              <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                View All
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.id}
-                    onClick={() => handleQuickAction(action.id)}
-                    className={`p-4 rounded-xl border-2 transition-all hover:shadow-lg hover:scale-105 active:scale-95 ${getLightColorClasses(action.color)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${getColorClasses(action.color)}`}>
-                        <Icon className="w-5 h-5 text-white" />
-                      </div>
-                      {action.count !== undefined && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-bold">{action.count}</span>
-                          {action.trend && (
-                            <div className={`w-2 h-2 rounded-full ${
-                              action.trend === 'up' ? 'bg-green-500' : 
-                              action.trend === 'down' ? 'bg-red-500' : 'bg-gray-500'
-                            }`}></div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="font-semibold text-gray-900 mb-1">{action.title}</h3>
-                    <p className="text-sm opacity-75">{action.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-              View All
+      {/* Enhanced Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid className="w-4 h-4" />}
             </button>
           </div>
-          <div className="space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-1">
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900">{activity.personName}</p>
-                  <p className="text-sm text-gray-600">{activity.details}</p>
-                  <p className="text-xs text-gray-500 mt-1">{formatTimeAgo(activity.timestamp)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      </div>
-
-      {/* Additional Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-          <div className="flex items-center gap-3 mb-4">
-            <Target className="w-6 h-6 text-blue-600" />
-            <h3 className="font-semibold text-blue-900">Growth</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-blue-700">Average Age</span>
-              <span className="font-bold text-blue-900">{stats.averageAge} years</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-blue-700">Oldest Generation</span>
-              <span className="font-bold text-blue-900">{stats.oldestGeneration} generations</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-          <div className="flex items-center gap-3 mb-4">
-            <Target className="w-6 h-6 text-green-600" />
-            <h3 className="font-semibold text-green-900">Families</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-green-700">Complete Families</span>
-              <span className="font-bold text-green-900">{stats.completeFamilies}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-green-700">Root Members</span>
-              <span className="font-bold text-green-900">{stats.rootMembers}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-          <div className="flex items-center gap-3 mb-4">
-            <PieChart className="w-6 h-6 text-purple-600" />
-            <h3 className="font-semibold text-purple-900">Distribution</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-purple-700">Countries</span>
-              <span className="font-bold text-purple-900">{stats.countries}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-purple-700">Recent Activity</span>
-              <span className="font-bold text-purple-900">{stats.recentActivity}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Toast Notifications */}
-      {toasts.length > 0 && (
-        <div className="fixed bottom-4 right-4 space-y-2 z-50">
-          {toasts.map((toast) => {
-            const Icon = toast.icon;
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4'}>
+          {quickActions.map((action) => {
+            const Icon = action.icon;
             return (
-              <div
-                key={toast.id}
-                className={`p-4 rounded-lg shadow-lg border max-w-sm ${
-                  toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-900' :
-                  toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
-                  toast.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-900' :
-                  'bg-blue-50 border-blue-200 text-blue-900'
-                }`}
+              <button
+                key={action.id}
+                onClick={() => handleQuickAction(action.id)}
+                className={getLightColorClasses(action.color) + ' p-4 text-left hover:shadow-lg transition-all duration-200 group'}
               >
-                <div className="flex items-start gap-3">
-                  <Icon className="w-5 h-5 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold">{toast.title}</h4>
-                    <p className="text-sm opacity-90">{toast.message}</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Icon className="w-6 h-6 text-gray-700" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900">{action.title}</div>
+                      <div className="text-sm text-gray-600">{action.description}</div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => removeToast(toast.id)}
-                    className="p-1 hover:bg-black hover:bg-opacity-10 rounded"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex flex-col items-end space-y-1">
+                    {action.count && (
+                      <div className="text-2xl font-bold text-gray-900">{action.count}</div>
+                    )}
+                    {action.badge && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                        {action.badge}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Enhanced Recent Activity Feed */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
+          <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            View All
+          </button>
+        </div>
+        <div className="space-y-4">
+          {recentActivities.slice(0, 5).map((activity) => {
+            const Icon = getActivityIcon(activity.type);
+            return (
+              <div key={activity.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                  {Icon}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{activity.personName}</p>
+                      <p className="text-sm text-gray-600">{activity.details}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {activity.priority && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(activity.priority)}`}>
+                          {activity.priority}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-500">{formatTimeAgo(activity.timestamp)}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
+      </div>
+
+      {/* Family Insights Section */}
+      {showInsights && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Family Insights</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              {
+                id: 'milestone',
+                title: 'Family Growing',
+                description: `Added ${stats.growthRate}% new members this month`,
+                icon: TrendingUp,
+                color: 'green'
+              },
+              {
+                id: 'research',
+                title: 'Research Progress',
+                description: `${stats.pendingTasks} research tasks pending`,
+                icon: Search,
+                color: 'blue'
+              },
+              {
+                id: 'connections',
+                title: 'New Connections',
+                description: '3 potential family relationships found',
+                icon: Heart,
+                color: 'purple'
+              },
+              {
+                id: 'photos',
+                title: 'Photo Updates',
+                description: '23 new photos uploaded this week',
+                icon: Camera,
+                color: 'orange'
+              }
+            ].map((insight) => {
+              const Icon = insight.icon;
+              return (
+                <div key={insight.id} className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-10 h-10 bg-${insight.color}-100 rounded-lg flex items-center justify-center`}>
+                      <Icon className={`w-5 h-5 text-${insight.color}-600`} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{insight.title}</p>
+                      <p className="text-sm text-gray-600">{insight.description}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
+
+      {/* Photo Upload Modal */}
+      {showPhotoUpload && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Upload Family Photos</h3>
+                <button
+                  onClick={() => setShowPhotoUpload(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Upload Photos</h4>
+                <p className="text-gray-600 mb-4">Drag and drop photos here, or click to browse</p>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  id="photo-upload"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handlePhotoUpload(e.target.files);
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="photo-upload"
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Select Photos
+                </label>
+              </div>
+              
+              {uploadedPhotos.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-900 mb-3">Recently Uploaded</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    {uploadedPhotos.slice(-6).map((photo) => (
+                      <div key={photo.id} className="relative group">
+                        <img
+                          src={photo.url}
+                          alt={photo.name}
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                          <span className="text-white text-xs">{photo.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DNA Analysis Modal */}
+      {showDNAAnalysis && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">DNA Analysis</h3>
+                <button
+                  onClick={() => setShowDNAAnalysis(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="text-center py-8">
+                <Dna className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Discover Genetic Relationships</h4>
+                <p className="text-gray-600 mb-6">
+                  Analyze DNA data to find genetic connections between family members
+                </p>
+                
+                {dnaAnalyses.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium text-gray-900 mb-3">Previous Analyses</h4>
+                    <div className="space-y-3">
+                      {dnaAnalyses.slice(-3).map((analysis) => (
+                        <div key={analysis.id} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {analysis.relationships.length} Relationships Found
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Confidence: {Math.round(analysis.confidence * 100)}%
+                              </p>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {new Date(analysis.completedAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <button
+                  onClick={handleDNAAnalysis}
+                  disabled={analyzingDNA}
+                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {analyzingDNA ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Dna className="w-4 h-4 mr-2" />
+                      Start Analysis
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {showAnalytics && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Family Analytics</h3>
+                <button
+                  onClick={() => setShowAnalytics(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {analyticsData ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">{analyticsData.totalMembers}</div>
+                      <div className="text-sm text-blue-700">Total Members</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">{analyticsData.averageAge}</div>
+                      <div className="text-sm text-green-700">Average Age</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">{analyticsData.countries}</div>
+                      <div className="text-sm text-purple-700">Countries</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">{analyticsData.photos}</div>
+                      <div className="text-sm text-orange-700">Photos</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Gender Distribution</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <span className="w-20 text-sm text-gray-600">Male</span>
+                        <div className="flex-1 bg-gray-200 rounded-full h-4 ml-2">
+                          <div 
+                            className="bg-blue-500 h-4 rounded-full" 
+                            style={{ width: `${(analyticsData.genderDistribution.male / analyticsData.totalMembers) * 100}%` }}
+                          ></div>
+                        </div>
+                        <span className="ml-2 text-sm text-gray-900">{analyticsData.genderDistribution.male}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="w-20 text-sm text-gray-600">Female</span>
+                        <div className="flex-1 bg-gray-200 rounded-full h-4 ml-2">
+                          <div 
+                            className="bg-pink-500 h-4 rounded-full" 
+                            style={{ width: `${(analyticsData.genderDistribution.female / analyticsData.totalMembers) * 100}%` }}
+                          ></div>
+                        </div>
+                        <span className="ml-2 text-sm text-gray-900">{analyticsData.genderDistribution.female}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Age Groups</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {analyticsData.ageGroups.map((group) => (
+                        <div key={group.range} className="p-3 bg-gray-50 rounded-lg text-center">
+                          <div className="text-lg font-semibold text-gray-900">{group.count}</div>
+                          <div className="text-sm text-gray-600">{group.range}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No Analytics Data</h4>
+                  <p className="text-gray-600 mb-4">
+                    Generate family analytics to see detailed statistics
+                  </p>
+                  <button
+                    onClick={loadAnalytics}
+                    disabled={loadingAnalytics}
+                    className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingAnalytics ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Generate Analytics
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-4 right-4 space-y-2 z-50">
+        {toasts.map((toast) => {
+          const Icon = toast.icon;
+          return (
+            <div
+              key={toast.id}
+              className={`p-4 rounded-lg shadow-lg border max-w-sm transform transition-all duration-300 ${
+                toast.type === 'success' ? 'bg-green-50 border-green-200' :
+                toast.type === 'error' ? 'bg-red-50 border-red-200' :
+                toast.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                'bg-blue-50 border-blue-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <Icon className="w-5 h-5 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-900">{toast.title}</p>
+                  <p className="text-sm text-gray-600">{toast.message}</p>
+                </div>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="ml-auto p-1 hover:bg-black hover:bg-opacity-10 rounded"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

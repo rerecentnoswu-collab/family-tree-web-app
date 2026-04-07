@@ -1,23 +1,53 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User, TreePine, Heart, Shield, ArrowRight, Mail, Lock } from 'lucide-react';
 
+// Import image using URL constructor for TypeScript compatibility
+const backgroundImg = new URL('/family-viewport-bg.png', import.meta.url).href;
+
 export function LandingPage() {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  
+  // Preload background image for better performance
+  useEffect(() => {
+    const preloadImage = new Image();
+    preloadImage.src = '/family-viewport-bg.png';
+    preloadImage.loading = 'eager';
+    preloadImage.onload = () => {
+      setImageLoaded(true);
+    };
+    preloadImage.onerror = () => {
+      setImageLoaded(false);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-      {/* Background */}
-      <div className="fixed inset-0 bg-cover bg-center bg-no-repeat -z-10"
+      {/* Optimized Background Image with Best Practices */}
+      <div 
+        className={`fixed inset-0 transition-opacity duration-1000 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
         style={{
-          backgroundImage: 'url(/family-header-bg.png)',
+          backgroundImage: imageLoaded ? `url(${backgroundImg})` : 'none',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          backgroundAttachment: 'fixed',
+          // Performance optimizations
+          imageRendering: 'auto'
         }}
         aria-hidden="true"
       />
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/50 -z-10" />
-
+      
+      {/* Fallback gradient for better text readability when image loads */}
+      {!imageLoaded && (
+        <div 
+          className="fixed inset-0 -z-10"
+          style={{
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #faf5ff 50%, #f0f9ff 100%)'
+          }}
+        />
+      )}
+      
       {/* Navigation */}
       <nav className="relative z-10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

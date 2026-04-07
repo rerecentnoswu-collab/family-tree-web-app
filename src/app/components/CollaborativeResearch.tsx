@@ -339,117 +339,20 @@ export function CollaborativeResearch({ persons }: { persons: Person[] }) {
     }
   };
 
-    // Generate mock research users
-    const mockUsers: ResearchUser[] = [
-      {
-        id: 'user-1',
-        name: 'Sarah Johnson',
-        email: 'sarah.johnson@example.com',
-        role: 'owner',
-        specialization: ['source-verification', 'historical-research'],
-        onlineStatus: 'online',
-        lastActive: new Date().toISOString(),
-        contributionCount: 42
-      },
-      {
-        id: 'user-2',
-        name: 'Michael Chen',
-        email: 'michael.chen@example.com',
-        role: 'researcher',
-        specialization: ['dna-analysis', 'relationship-mapping'],
-        onlineStatus: 'away',
-        lastActive: new Date(Date.now() - 30 * 60000).toISOString(),
-        contributionCount: 28
-      },
-      {
-        id: 'user-3',
-        name: 'Emily Rodriguez',
-        email: 'emily.rodriguez@example.com',
-        role: 'editor',
-        specialization: ['data-entry', 'documentation'],
-        onlineStatus: 'offline',
-        lastActive: new Date(Date.now() - 2 * 3600000).toISOString(),
-        contributionCount: 15
-      }
-    ];
+  useEffect(() => {
+    const loadInitialData = async () => {
+      const tasks = await loadResearchTasks();
+      const users = await loadResearchUsers();
+      const changes = await loadChangeRecords();
+      const discussions = await loadDiscussionThreads();
 
-    // Generate mock change records
-    const mockChanges: ChangeRecord[] = [
-      {
-        id: 'change-1',
-        userId: 'user-1',
-        userName: 'Sarah Johnson',
-        action: 'add',
-        entityType: 'person',
-        entityId: 'person-123',
-        entityName: 'Robert Smith',
-        description: 'Added new person Robert Smith with birth date 1852',
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        reviewed: false
-      },
-      {
-        id: 'change-2',
-        userId: 'user-2',
-        userName: 'Michael Chen',
-        action: 'edit',
-        entityType: 'relationship',
-        entityId: 'rel-456',
-        entityName: 'Parent-Child: John Smith → Robert Smith',
-        description: 'Updated relationship confidence from 70% to 85% based on new evidence',
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        reviewed: true
-      },
-      {
-        id: 'change-3',
-        userId: 'user-3',
-        userName: 'Emily Rodriguez',
-        action: 'merge',
-        entityType: 'person',
-        entityId: 'person-789',
-        entityName: 'Mary Smith (duplicate)',
-        description: 'Merged duplicate Mary Smith entries after verification',
-        timestamp: new Date(Date.now() - 10800000).toISOString(),
-        reviewed: true
-      }
-    ];
+      setResearchTasks(tasks);
+      setResearchUsers(users);
+      setChangeRecords(changes);
+      setDiscussionThreads(discussions);
+    };
 
-    // Generate mock discussion threads
-    const mockDiscussions: DiscussionThread[] = [
-      {
-        id: 'disc-1',
-        title: 'Question about Smith family origin',
-        category: 'question',
-        authorId: 'user-2',
-        authorName: 'Michael Chen',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - 3600000).toISOString(),
-        replies: 5,
-        views: 23,
-        status: 'open',
-        tags: ['smith-family', 'origin', 'question'],
-        priority: 'medium',
-        assignedTo: ['user-1']
-      },
-      {
-        id: 'disc-2',
-        title: 'DNA matching results discussion',
-        category: 'technical',
-        authorId: 'user-1',
-        authorName: 'Sarah Johnson',
-        createdAt: new Date(Date.now() - 172800000).toISOString(),
-        updatedAt: new Date(Date.now() - 7200000).toISOString(),
-        replies: 12,
-        views: 45,
-        status: 'resolved',
-        tags: ['dna', 'matching', 'analysis'],
-        priority: 'high'
-      }
-    ];
-
-    setResearchTasks(mockTasks);
-    setResearchUsers(mockUsers);
-    setChangeRecords(mockChanges);
-    setDiscussionThreads(mockDiscussions);
+    loadInitialData();
   }, []);
 
   // Filter functions

@@ -45,10 +45,11 @@ export function PhotoRecognition({
     try {
       setIsLoading(true);
       
-      // Try CDN first, then fallback to local models
+      // Try multiple CDN sources for face-api.js models
       const MODEL_URLS = [
         'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights',
-        'https://unpkg.com/face-api.js@0.22.2/weights'
+        'https://unpkg.com/face-api.js@0.22.2/weights',
+        'https://cdn.skypack.dev/face-api.js@0.22.2/weights'
       ];
       
       let modelsLoaded = false;
@@ -79,6 +80,8 @@ export function PhotoRecognition({
     } catch (err) {
       setError('Failed to load face detection models. Please check your internet connection and try again.');
       console.error('Model loading error:', err);
+      // Set a flag to disable face recognition features
+      setIsModelLoaded(false);
     } finally {
       setIsLoading(false);
     }

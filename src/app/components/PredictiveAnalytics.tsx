@@ -1,20 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Brain, Users, MapPin, Activity, AlertTriangle, TrendingUp, Clock, Globe, Heart, Calendar, Search, Filter } from 'lucide-react';
-
-interface Person {
-  id: string;
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  birthday: string;
-  birthplace: string;
-  motherId?: string;
-  fatherId?: string;
-  gender?: 'male' | 'female' | 'other';
-  occupation?: string;
-  deathDate?: string;
-  deathPlace?: string;
-}
+import { Person } from '../types/Person';
 
 interface PredictiveInsight {
   id: string;
@@ -88,43 +74,303 @@ export function PredictiveAnalytics({ persons, onInsightSelected }: PredictiveAn
   const [searchTerm, setSearchTerm] = useState('');
   const [confidenceFilter, setConfidenceFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
 
-  // ML-powered prediction of missing relatives
+  // Performance optimizations for large datasets
+  const personsIndex = useMemo(() => {
+    const index = new Map<string, Person>();
+    persons.forEach(person => index.set(person.id, person));
+    return index;
+  }, [persons]);
+
+  const familyGroups = useMemo(() => {
+    const groups = new Map<string, Person[]>();
+    persons.forEach(person => {
+      if (person.motherId || person.fatherId) {
+        const parentId = person.motherId || person.fatherId;
+        const existing = groups.get(parentId) || [];
+        groups.set(parentId, [...existing, person]);
+      }
+    });
+    return groups;
+  }, [persons]);
+
+  const ageGroups = useMemo(() => {
+    const groups = new Map<string, Person[]>();
+    persons.forEach(person => {
+      if (person.birthday) {
+        const age = calculateAge(person.birthday);
+        const ageGroup = getAgeGroup(age);
+        const existing = groups.get(ageGroup) || [];
+        groups.set(ageGroup, [...existing, person]);
+      }
+    });
+    return groups;
+  }, [persons]);
+
+  // Helper functions for performance
+  const calculateAge = (birthday: string): number => {
+    const birth = new Date(birthday);
+    const now = new Date();
+    return Math.floor((now.getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  };
+
+  const getAgeGroup = (age: number): string => {
+    if (age < 18) return 'child';
+    if (age < 30) return 'young_adult';
+    if (age < 50) return 'adult';
+    if (age < 70) return 'senior';
+    return 'elderly';
+  };
+
+  // ML-powered prediction of missing relatives with performance optimizations
   const predictMissingRelatives = useMemo(() => {
     const missingRelatives: PredictiveInsight[] = [];
     
+    // Early return for small datasets
+    if (persons.length < 2) return missingRelatives;
+    
+    // Batch process persons for better performance
     persons.forEach(person => {
-      // Algorithm 1: Bayesian probability for missing parents
+      // Algorithm 1: Bayesian probability for missing parents (optimized)
       if (!person.motherId || !person.fatherId) {
-        const parentProbability = calculateMissingParentProbability(person, persons);
+        const parentProbability = calculateMissingParentProbabilityOptimized(person, personsIndex, ageGroups);
         
         if (parentProbability > 0.7) {
-        if (!hasChildren) {
           missingRelatives.push({
-            id: `potential-spouse-${person.id}`,
+            id: `missing-parents-${person.id}`,
             type: 'missing_relative',
-            title: `Potential Missing Spouse for ${person.firstName}`,
-            description: `At age ${personAge}, likely married or in a relationship`,
-            confidence: 0.60,
-            evidence: [
-              `Current age: ${personAge}`,
-              `No children recorded`,
-              `Historical marriage patterns`
-            ],
+            title: `High Probability Missing Parents for ${person.firstName} ${person.lastName}`,
+            description: `Bayesian analysis indicates ${(parentProbability * 100).toFixed(1)}% probability of missing parent records`,
+            confidence: parentProbability,
+            evidence: generateParentEvidenceOptimized(person, personsIndex),
             relatedPersons: [person.id],
-            category: 'medium',
+            category: parentProbability > 0.85 ? 'high' : 'medium',
             actionable: true,
-            suggestedActions: [
-              'Search marriage records',
-              'Check census records for cohabitation',
-              'Look for family photographs'
-            ]
+            suggestedActions: generateParentSearchActionsOptimized(person, parentProbability)
           });
         }
       }
+      
+      // Algorithm 2: Clustering analysis for missing siblings (optimized)
+      const siblingProbability = calculateMissingSiblingProbabilityOptimized(person, familyGroups);
+      
+      if (siblingProbability > 0.6) {
+        missingRelatives.push({
+          id: `missing-siblings-${person.id}`,
+          type: 'missing_relative',
+          title: `Likely Missing Siblings for ${person.firstName}`,
+          description: `Cluster analysis suggests ${(siblingProbability * 100).toFixed(1)}% probability of missing siblings`,
+          confidence: siblingProbability,
+          evidence: generateSiblingEvidenceOptimized(person, familyGroups),
+          relatedPersons: [person.id],
+          category: siblingProbability > 0.8 ? 'high' : 'medium',
+          actionable: true,
+          suggestedActions: generateSiblingSearchActionsOptimized(person, siblingProbability)
+        });
+      }
+      
+      // Algorithm 3: Temporal gap analysis for missing children (optimized)
+      const missingChildrenProbability = calculateMissingChildrenProbabilityOptimized(person, ageGroups);
+      
+      if (missingChildrenProbability > 0.65) {
+        missingRelatives.push({
+          id: `missing-children-${person.id}`,
+          type: 'missing_relative',
+          title: `Potential Missing Children for ${person.firstName} ${person.lastName}`,
+          description: `Temporal analysis indicates ${(missingChildrenProbability * 100).toFixed(1)}% probability of missing children`,
+          confidence: missingChildrenProbability,
+          evidence: generateChildrenEvidenceOptimized(person, ageGroups),
+          relatedPersons: [person.id],
+          category: 'medium',
+          actionable: true,
+          suggestedActions: generateChildrenSearchActionsOptimized(person, missingChildrenProbability)
+        });
+      }
     });
     
-    return missingRelatives;
-  }, [persons]);
+    // Sort by confidence and limit results for performance
+    return missingRelatives
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, Math.min(50, missingRelatives.length)); // Limit to top 50 for performance
+  }, [persons, personsIndex, familyGroups, ageGroups]);
+
+  // Optimized helper functions for performance
+  const calculateMissingParentProbabilityOptimized = (person: Person, index: Map<string, Person>, ageGroups: Map<string, Person[]>): number => {
+    if (!person.birthday) return 0.5;
+    
+    const age = calculateAge(person.birthday);
+    const ageGroup = getAgeGroup(age);
+    const sameAgeGroup = ageGroups.get(ageGroup) || [];
+    
+    // Calculate probability based on same-age peers
+    const withParents = sameAgeGroup.filter(p => p.motherId || p.fatherId).length;
+    const totalInGroup = sameAgeGroup.length;
+    
+    if (totalInGroup === 0) return 0.5;
+    
+    const baseProbability = 1 - (withParents / totalInGroup);
+    
+    // Bayesian adjustment for historical periods
+    const birthYear = person.birthday ? new Date(person.birthday).getFullYear() : undefined;
+    const historicalAdjustment = birthYear && birthYear < 1900 ? 0.2 : 0;
+    
+    return Math.min(0.95, baseProbability + historicalAdjustment);
+  };
+
+  const calculateMissingSiblingProbabilityOptimized = (person: Person, familyGroups: Map<string, Person[]>): number => {
+    const parentId = person.motherId || person.fatherId;
+    if (!parentId) return 0.3;
+    
+    const siblings = familyGroups.get(parentId) || [];
+    const currentSiblings = siblings.filter(s => s.id !== person.id).length;
+    
+    // Historical family size averages by era
+    const birthYear = person.birthday ? new Date(person.birthday).getFullYear() : undefined;
+    const era = getHistoricalEra(birthYear);
+    const expectedFamilySize = getHistoricalFamilySize(era);
+    
+    if (currentSiblings >= expectedFamilySize - 1) return 0.2;
+    
+    return Math.min(0.9, (expectedFamilySize - currentSiblings - 1) / expectedFamilySize);
+  };
+
+  const calculateMissingChildrenProbabilityOptimized = (person: Person, ageGroups: Map<string, Person[]>): number => {
+    if (!person.birthday) return 0.3;
+    
+    const age = calculateAge(person.birthday);
+    if (age < 18 || age > 50) return 0.1; // Outside typical childbearing years
+    
+    const ageGroup = getAgeGroup(age);
+    const sameAgeGroup = ageGroups.get(ageGroup) || [];
+    
+    // Check for existing children
+    const hasChildren = persons.some(p => p.motherId === person.id || p.fatherId === person.id);
+    if (hasChildren) return 0.2;
+    
+    // Probability based on age and historical context
+    const birthYear = person.birthday ? new Date(person.birthday).getFullYear() : undefined;
+    const era = getHistoricalEra(birthYear);
+    const expectedChildren = getHistoricalChildrenCount(era);
+    
+    return Math.min(0.8, expectedChildren * 0.6);
+  };
+
+  const generateParentEvidenceOptimized = (person: Person, index: Map<string, Person>): string[] => {
+    const evidence = [];
+    
+    if (!person.motherId) evidence.push('No mother record found');
+    if (!person.fatherId) evidence.push('No father record found');
+    if (person.birthday) {
+      const age = calculateAge(person.birthday);
+      if (age < 18) evidence.push(`Minor (${age} years) - parents likely`);
+    }
+    
+    return evidence;
+  };
+
+  const generateSiblingEvidenceOptimized = (person: Person, familyGroups: Map<string, Person[]>): string[] => {
+    const evidence = [];
+    
+    const parentId = person.motherId || person.fatherId;
+    if (parentId) {
+      const siblings = familyGroups.get(parentId) || [];
+      evidence.push(`Current siblings: ${siblings.length - 1} recorded`);
+      
+      if (siblings.length < 3) {
+        evidence.push('Small family size suggests missing siblings');
+      }
+    }
+    
+    return evidence;
+  };
+
+  const generateChildrenEvidenceOptimized = (person: Person, ageGroups: Map<string, Person[]>): string[] => {
+    const evidence = [];
+    
+    if (person.birthday) {
+      const age = calculateAge(person.birthday);
+      if (age >= 20 && age <= 45) {
+        evidence.push(`In childbearing age range (${age} years)`);
+        
+        const hasChildren = persons.some(p => p.motherId === person.id || p.fatherId === person.id);
+        if (!hasChildren) {
+          evidence.push('No children recorded');
+        }
+      }
+    }
+    
+    return evidence;
+  };
+
+  const generateParentSearchActionsOptimized = (person: Person, probability: number): string[] => {
+    const actions = [];
+    
+    if (person.birthplace) {
+      actions.push(`Search ${person.birthplace} birth records`);
+    }
+    
+    const birthYear = person.birthday ? new Date(person.birthday).getFullYear() : undefined;
+    if (birthYear) {
+      actions.push(`Check ${birthYear} census data`);
+    }
+    
+    if (probability > 0.85) {
+      actions.push('Priority: High probability - immediate research recommended');
+    }
+    
+    return actions;
+  };
+
+  const generateSiblingSearchActionsOptimized = (person: Person, probability: number): string[] => {
+    const actions = [];
+    
+    const parentId = person.motherId || person.fatherId;
+    if (parentId) {
+      const parent = personsIndex.get(parentId);
+      if (parent && parent.birthplace) {
+        actions.push(`Search ${parent.birthplace} family records`);
+      }
+    }
+    
+    actions.push('Review extended family connections');
+    
+    return actions;
+  };
+
+  const generateChildrenSearchActionsOptimized = (person: Person, probability: number): string[] => {
+    const actions = [];
+    
+    if (person.birthday) {
+      const age = calculateAge(person.birthday);
+      if (age >= 25) {
+        actions.push('Search marriage records');
+      }
+      
+      if (person.birthplace) {
+        actions.push(`Check ${person.birthplace} local records`);
+      }
+    }
+    
+    return actions;
+  };
+
+  // Helper functions for historical context
+  const getHistoricalEra = (birthYear?: number): string => {
+    if (!birthYear) return 'unknown';
+    if (birthYear < 1900) return '1800s';
+    if (birthYear < 1920) return '1900s';
+    if (birthYear < 1950) return '1940s';
+    return 'modern';
+  };
+
+  const getHistoricalFamilySize = (era: string): number => {
+    const sizes: Record<string, number> = { '1800s': 8, '1900s': 6, '1940s': 4, 'modern': 2.5 };
+    return sizes[era] || 3;
+  };
+
+  const getHistoricalChildrenCount = (era: string): number => {
+    const counts: Record<string, number> = { '1800s': 6, '1900s': 4, '1940s': 3, 'modern': 2 };
+    return counts[era] || 2;
+  };
 
   // Predict migration patterns
   const predictMigrationPatterns = useMemo(() => {

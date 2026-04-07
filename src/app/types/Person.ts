@@ -13,4 +13,39 @@ export interface Person {
   deathDate?: string;
   deathPlace?: string;
   events?: any[];
+  
+  // Enhanced relationship fields
+  relationships?: Relationship[];
+  marriageDate?: string;
+  marriageLocation?: string;
+  marriageStatus?: 'single' | 'married' | 'engaged' | 'partnered' | 'divorced' | 'widowed';
+  anniversary?: string;
+  relationshipNotes?: string;
+}
+
+export interface Relationship {
+  id: string;
+  personId: string;
+  relatedPersonId: string;
+  type: 'spouse' | 'partner' | 'engaged' | 'ex_spouse' | 'parent' | 'child' | 'sibling';
+  startDate?: string;
+  endDate?: string;
+  location?: string;
+  notes?: string;
+  verified: boolean;
+  sources?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MarriageEvent {
+  id: string;
+  person1Id: string;
+  person2Id: string;
+  date: string;
+  location: string;
+  type: 'marriage' | 'engagement' | 'anniversary' | 'divorce';
+  description?: string;
+  sources?: string[];
+  photos?: string[];
 }

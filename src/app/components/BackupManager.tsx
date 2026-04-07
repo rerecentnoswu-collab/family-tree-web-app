@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Upload, Database, Cloud, Shield, Clock, Calendar, FileText, Settings, CheckCircle, AlertTriangle, RefreshCw, Trash2, Eye, Archive, HardDrive, ExternalLink, Lock, Unlock, Zap, Users, GitBranch, BarChart3, Activity } from 'lucide-react';
+import { Download, Upload, Database, Cloud, Shield, Clock, Calendar, FileText, Settings, CheckCircle, AlertTriangle, RefreshCw, Trash2, Eye, Archive, HardDrive, ExternalLink, Lock, Unlock, Zap, Users, GitBranch, BarChart3, Activity, Plus, Camera, Link } from 'lucide-react';
 
 interface BackupConfig {
   id: string;

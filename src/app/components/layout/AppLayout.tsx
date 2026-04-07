@@ -25,6 +25,9 @@ import {
   Sparkles
 } from 'lucide-react';
 
+// Import background image
+const backgroundImg = '/family-viewport-bg.png';
+
 interface AppLayoutProps {
   children: React.ReactNode;
   signOut: () => void;
@@ -45,6 +48,15 @@ export function AppLayout({ children, signOut, user }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  // Preload background image
+  useEffect(() => {
+    const preloadImage = document.createElement('img');
+    preloadImage.src = backgroundImg;
+    preloadImage.onload = () => setImageLoaded(true);
+    preloadImage.onerror = () => setImageLoaded(false);
+  }, []);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -183,7 +195,28 @@ export function AppLayout({ children, signOut, user }: AppLayoutProps) {
   }, [userMenuOpen, notificationsOpen]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="relative min-h-screen bg-gray-50 flex">
+      {/* Background Image */}
+      <div 
+        className={`fixed inset-0 transition-opacity duration-1000 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        style={{
+          backgroundImage: imageLoaded ? `url(${backgroundImg})` : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed',
+          imageRendering: 'auto'
+        }}
+        aria-hidden="true"
+      />
+      
+      {/* Gradient overlay for better content readability */}
+      <div 
+        className="fixed inset-0 z-0"
+        style={{
+          background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.9) 100%)'
+        }}
+      />
       {/* Mobile Sidebar Overlay */}
       {mobileSidebarOpen && (
         <div 
@@ -512,11 +545,11 @@ export function AppLayout({ children, signOut, user }: AppLayoutProps) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+        <div className="relative z-10 flex-1 overflow-auto pointer-events-auto">
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             {children}
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );
