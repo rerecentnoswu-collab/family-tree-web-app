@@ -8,21 +8,22 @@ import { Dashboard } from './components/Dashboard';
 import { LandingPage } from './components/LandingPage';
 import { SignIn } from './components/SignIn';
 import { SignUp } from './components/SignUp';
+import { sampleFamilyMembers } from './components/SampleDataSeeder';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { InteractiveTimeline } from './components/InteractiveTimeline';
 import { PhotoRecognition } from './components/PhotoRecognition';
 import { DNAAnalysis } from './components/DNAAnalysis';
 import { DocumentProcessor } from './components/DocumentProcessor';
-import { PredictiveAnalytics } from './components/PredictiveAnalytics';
 import { AdvancedRelationshipDiscovery } from './components/AdvancedRelationshipDiscovery';
 import { CollaborativeResearch } from './components/CollaborativeResearch';
 import { PrivacyFramework } from './components/PrivacyFramework';
 import { SourceCitationManager } from './components/SourceCitationManager';
 import { BackupManager } from './components/BackupManager';
 import { AppLayout } from './components/layout/AppLayout';
-import { Users, GitBranch, LogOut, Home, BookOpen, Clock, Camera, Dna, FileText, BarChart3, Network, Search, Shield, Library, Archive } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { getPersons, initializeDatabase, type Person as DBPerson } from '../../utils/supabase/client';
 import { Person } from './types/Person';
+import { PersonCardsSkeleton } from './components/ui/SkeletonLoader';
 
 // Import viewport background image
 const viewportBgImg = '/family-viewport-bg.png';
@@ -74,18 +75,18 @@ function AppContent() {
         return;
       }
 
-      console.log('📊 Fetching persons data...');
+      console.log(' Fetching persons data...');
       const data = await getPersons();
       
       if (!data || data.length === 0) {
-        console.log('ℹ️ No persons found in database');
-        setPersons([]);
+        console.log(' No persons found in database - using sample data');
+        setPersons(JSON.parse(JSON.stringify(sampleFamilyMembers)));
       } else {
-        console.log(`✅ Successfully fetched ${data.length} persons`);
+        console.log(` Successfully fetched ${data.length} persons`);
         setPersons(data.map(dbToAppPerson));
       }
     } catch (error) {
-      console.error('❌ Error fetching persons:', error);
+      console.error(' Error fetching persons:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch persons');
     } finally {
       setDataLoading(false);
@@ -95,8 +96,6 @@ function AppContent() {
   useEffect(() => {
     if (user) {
       fetchPersons();
-    } else {
-      setDataLoading(false);
     }
   }, [user]);
 
@@ -119,31 +118,6 @@ function AppContent() {
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataLoading) {
-    return (
-      <div className="min-h-screen relative">
-        <div 
-          className="fixed inset-0 -z-5 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url(${viewportBgImg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundAttachment: 'fixed'
-          }}
-        />
-        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-50/50 to-purple-50/50" />
-        
-        <div className="relative flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your family tree...</p>
           </div>
         </div>
       </div>
@@ -230,7 +204,9 @@ function AppContent() {
                 <h2 className="text-2xl font-bold text-gray-900">Family Members</h2>
                 <PersonForm onPersonAdded={fetchPersons} />
               </div>
-              {persons.length === 0 ? (
+              {dataLoading ? (
+                <PersonCardsSkeleton />
+              ) : persons.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
                   <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No family members yet</h3>

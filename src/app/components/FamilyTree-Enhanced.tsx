@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, memo } from 'react';
+import { useMemo, memo } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -16,17 +16,12 @@ import { Person } from '../types/Person';
 import { 
   getAllCouples, 
   getRelationshipIndicator, 
-  getAnniversaryInfo,
-  CoupleInfo 
+  getAnniversaryInfo
 } from '../utils/relationshipUtils';
+import { FamilyTreeSkeleton } from './ui/SkeletonLoader';
 import { 
   Heart, 
-  Users, 
-  AlertCircle, 
-  Calendar,
-  MapPin,
-  Clock,
-  Sparkles
+  Calendar
 } from 'lucide-react';
 
 interface FamilyTreeProps {
@@ -296,8 +291,8 @@ export function FamilyTreeEnhanced({
     return { nodes, edges };
   }, [persons, onPersonClick, couples, showRelationshipLabels, showAnniversaries]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(generatedNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(generatedEdges);
+  const [nodes, , onNodesChange] = useNodesState(generatedNodes);
+  const [edges, , onEdgesChange] = useEdgesState(generatedEdges);
 
   // Node types registration
   const nodeTypes = useMemo(() => ({
@@ -307,13 +302,7 @@ export function FamilyTreeEnhanced({
   return (
     <div className="w-full h-full">
       {persons.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Family Members Yet</h3>
-            <p className="text-gray-600">Add some family members to see your family tree!</p>
-          </div>
-        </div>
+        <FamilyTreeSkeleton />
       ) : (
         <ReactFlow
           nodes={nodes}

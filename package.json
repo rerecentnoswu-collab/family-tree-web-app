@@ -101,6 +101,7 @@
     "jsdom": "^29.0.1",
     "tailwindcss": "4.1.12",
     "terser": "^5.46.1",
+    "typescript": "^6.0.2",
     "vite": "6.3.5",
     "vitest": "^4.1.2",
     "vitest-dom": "^0.1.1"

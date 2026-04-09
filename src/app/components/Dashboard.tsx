@@ -1,59 +1,24 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Person } from '../types/Person';
+import { DashboardSkeleton } from './ui/SkeletonLoader';
 import { 
   Users, 
   Plus,
   GitBranch, 
   Camera, 
-  Shield, 
   Dna, 
-  Brain, 
   TrendingUp, 
   Search, 
   Clock, 
-  BookOpen, 
-  Database, 
-  Sparkles, 
-  Archive, 
-  Users2, 
-  History, 
   Activity, 
   Calendar, 
   MapPin, 
   Heart, 
-  Star, 
-  ChevronRight, 
   BarChart3, 
-  PieChart, 
-  Target, 
   X, 
-  Info, 
-  Calendar as CalendarIcon, 
-  TrendingDown, 
-  Minus, 
   ArrowUp, 
-  ArrowDown, 
-  MoreVertical, 
-  Filter, 
-  Download, 
-  RefreshCw, 
-  Settings, 
-  Bell, 
-  User, 
-  LogOut, 
-  Home, 
-  FileText, 
-  Image,
-  Globe,
-  Award,
-  Zap,
   Eye,
-  Share2,
-  Plus,
-  ChevronDown,
-  AlertCircle,
-  CheckCircle,
   Grid,
   List
 } from 'lucide-react';
@@ -140,17 +105,7 @@ interface QuickAction {
   badge?: string;
 }
 
-interface FamilyInsight {
-  id: string;
-  type: 'milestone' | 'anniversary' | 'missing_info' | 'connection';
-  title: string;
-  description: string;
-  icon: React.ElementType;
-  color: string;
-  priority: 'high' | 'medium' | 'low';
-}
-
-export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
+export function Dashboard({ persons, onPersonAdded: _ }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats>({
     totalMembers: 0,
     completeFamilies: 0,
@@ -173,7 +128,7 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
   const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [showDNAAnalysis, setShowDNAAnalysis] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [_uploadingPhoto, setUploadingPhoto] = useState(false);
   const [analyzingDNA, setAnalyzingDNA] = useState(false);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<'week' | 'month' | 'year'>('month');
@@ -479,58 +434,8 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
       return activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     };
 
-    // Generate family insights
-    const generateFamilyInsights = (): FamilyInsight[] => {
-      if (!persons || persons.length === 0) return [];
-
-      const insights: FamilyInsight[] = [];
-
-      // Milestone insight
-      if (stats.totalMembers >= 10) {
-        insights.push({
-          id: 'milestone-1',
-          type: 'milestone',
-          title: 'Family Milestone Reached!',
-          description: `Your family tree now includes ${stats.totalMembers} members`,
-          icon: Award,
-          color: 'blue',
-          priority: 'high'
-        });
-      }
-
-      // Missing info insight
-      const missingBirthdates = persons.filter(p => !p.birthday).length;
-      if (missingBirthdates > 0) {
-        insights.push({
-          id: 'missing-birthdates',
-          type: 'missing_info',
-          title: `${missingBirthdates} Missing Birthdates`,
-          description: 'Complete family profiles by adding birth dates',
-          icon: AlertCircle,
-          color: 'orange',
-          priority: 'medium'
-        });
-      }
-
-      // Connection insight
-      if (stats.completeFamilies > 0) {
-        insights.push({
-          id: 'family-connections',
-          type: 'connection',
-          title: 'Strong Family Connections',
-          description: `${stats.completeFamilies} complete family units identified`,
-          icon: Heart,
-          color: 'green',
-          priority: 'low'
-        });
-      }
-
-      return insights;
-    };
-
     const realStats = calculateRealStats();
     const realActivities = generateRealActivities();
-    const familyInsights = generateFamilyInsights();
 
     setTimeout(() => {
       setStats(realStats);
@@ -637,18 +542,6 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
     }
   };
 
-  const getQuickActions = (color: string) => {
-    const colors: Record<string, string> = {
-      blue: 'bg-blue-500 hover:bg-blue-600',
-      green: 'bg-green-500 hover:bg-green-600',
-      purple: 'bg-purple-500 hover:bg-purple-600',
-      indigo: 'bg-indigo-500 hover:bg-indigo-600',
-      orange: 'bg-orange-500 hover:bg-orange-600',
-      teal: 'bg-teal-500 hover:bg-teal-600'
-    };
-    return colors[color] || 'bg-gray-500 hover:bg-gray-600';
-  };
-
   const getLightColorClasses = (color: string) => {
     const colors: Record<string, string> = {
       blue: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -699,14 +592,7 @@ export function Dashboard({ persons, onPersonAdded }: DashboardProps) {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (

@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // ✅ Read from environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(' Supabase credentials missing!');
@@ -64,7 +64,6 @@ export async function getPersons() {
   const { data, error } = await supabase
     .from('persons')
     .select('*')
-    .eq('user_id', user.id)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
