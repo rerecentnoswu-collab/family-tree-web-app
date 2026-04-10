@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Read from environment variables
 const supabaseUrl = (import.meta.env as any)?.VITE_SUPABASE_URL || '';
@@ -8,7 +8,35 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error(' Supabase credentials missing!');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Singleton pattern to prevent multiple client instances
+let supabaseInstance: SupabaseClient | null = null;
+
+export const supabase: SupabaseClient = (() => {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storage: window.localStorage,
+          storageKey: 'genealogy-auth-token', // Unique storage key
+        },
+        global: {
+          headers: {
+            'X-Client-Info': 'genealogy-app@1.0.0',
+          },
+        },
+        db: {
+          schema: 'public',
+        },
+      }
+    );
+  }
+  return supabaseInstance;
+})();
 
 // Database types
 export interface Person {
