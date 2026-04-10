@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../utils/supabase/client';
+import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../../../utils/supabase/client';
 import { Person } from '../types/Person';
+import { useAuth } from './useAuth';
 
 const dbToAppPerson = (dbPerson: DBPerson): Person => ({
   id: dbPerson.id,
@@ -31,7 +32,8 @@ export interface UseFamilyDataReturn {
   acceptInvitation: (invitationId: string) => Promise<void>;
 }
 
-export const useFamilyData = (user: any): UseFamilyDataReturn => {
+export const useFamilyData = (): UseFamilyDataReturn => {
+  const { user, isAuthenticated } = useAuth();
   const [persons, setPersons] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
   const [familyInheritance, setFamilyInheritance] = useState<UseFamilyDataReturn['familyInheritance']>(null);
 
   const fetchPersons = async () => {
-    if (!user) {
+    if (!isAuthenticated || !user) {
       setLoading(false);
       return;
     }
@@ -50,6 +52,8 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
     
     try {
       console.log(' Fetching persons from database...');
+      
+      // Initialize database with authenticated user
       const initResult = await initializeDatabase();
       
       if (!initResult.success) {
@@ -140,10 +144,13 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated && user) {
       fetchPersons();
+    } else if (!isAuthenticated) {
+      setLoading(false);
+      setPersons([]);
     }
-  }, [user]);
+  }, [isAuthenticated, user]);
 
   return {
     persons,

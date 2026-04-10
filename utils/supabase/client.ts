@@ -70,18 +70,29 @@ export interface FamilyInvitation {
 // Initialize database tables and verify user access
 export async function initializeDatabase() {
   try {
-    // Get current user first
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    // Get current user with better error handling
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError) {
+      console.error('Authentication error:', authError.message);
       return {
         success: false,
-        error: 'User not authenticated',
+        error: `Authentication error: ${authError.message}`,
+        needsSetup: false
+      };
+    }
+    
+    if (!user) {
+      console.warn('No authenticated user found during database initialization');
+      return {
+        success: false,
+        error: 'User not authenticated. Please sign in first.',
         needsSetup: false
       };
     }
 
     // Check if the persons table exists and user has access
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('persons')
       .select('id')
       .eq('user_id', user.id) // Check user-specific access
@@ -96,12 +107,43 @@ export async function initializeDatabase() {
       };
     }
     
+    console.log(`Database initialized successfully for user: ${user.id}`);
     return { success: true };
   } catch (error) {
     console.error('Error checking database:', error);
     return {
       success: false,
-      error: 'Failed to connect to database',
+      error: error instanceof Error ? error.message : 'Failed to connect to database',
+      needsSetup: false
+    };
+  }
+}
+
+// Alternative initialization that doesn't require authentication
+export async function initializeDatabaseWithoutAuth() {
+  try {
+    // Check if the persons table exists (no user filter)
+    const { data, error } = await supabase
+      .from('persons')
+      .select('id')
+      .limit(1);
+    
+    if (error) {
+      console.error('Database initialization needed:', error.message);
+      return {
+        success: false,
+        error: 'Database tables need to be created. Please run the SQL setup in Supabase.',
+        needsSetup: true
+      };
+    }
+    
+    console.log('Database initialized successfully (no auth required)');
+    return { success: true };
+  } catch (error) {
+    console.error('Error checking database:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to connect to database',
       needsSetup: false
     };
   }
