@@ -5,6 +5,7 @@ import { useAuth } from './AuthProvider';
 
 interface SignUpFormData {
   firstName: string;
+  middleName: string;
   lastName: string;
   email: string;
   password: string;
@@ -14,6 +15,7 @@ interface SignUpFormData {
 
 interface FormErrors {
   firstName?: string;
+  middleName?: string;
   lastName?: string;
   email?: string;
   password?: string;
@@ -33,6 +35,7 @@ const passwordRequirements = {
 export function SignUp() {
   const [formData, setFormData] = useState<SignUpFormData>({
     firstName: '',
+    middleName: '',
     lastName: '',
     email: '',
     password: '',
@@ -169,6 +172,7 @@ export function SignUp() {
         formData.email.trim(),
         formData.password,
         formData.firstName.trim(),
+        formData.middleName.trim(),
         formData.lastName.trim()
       );
       
@@ -274,69 +278,106 @@ export function SignUp() {
 
           <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             {/* Name Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
-                  First Name
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="w-5 h-5 text-gray-400" aria-hidden="true" />
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
+                    First Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                    </div>
+                    <input
+                      id="firstName"
+                      name="firstName"
+                      type="text"
+                      autoComplete="given-name"
+                      required
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
+                      className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 focus:outline-none transition-colors ${
+                        errors.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter your first name"
+                      aria-invalid={!!errors.firstName}
+                      aria-describedby={errors.firstName ? 'firstName-error' : undefined}
+                    />
                   </div>
-                  <input
-                    id="firstName"
-                    name="firstName"
-                    type="text"
-                    autoComplete="given-name"
-                    required
-                    value={formData.firstName}
-                    onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 focus:outline-none transition-colors ${
-                      errors.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter your first name"
-                    aria-invalid={!!errors.firstName}
-                    aria-describedby={errors.firstName ? 'firstName-error' : undefined}
-                  />
+                  {errors.firstName && (
+                    <p id="firstName-error" className="mt-2 text-sm text-red-600 flex items-center" role="alert">
+                      <AlertCircle className="w-4 h-4 mr-1" />
+                      {errors.firstName}
+                    </p>
+                  )}
                 </div>
-                {errors.firstName && (
-                  <p id="firstName-error" className="mt-2 text-sm text-red-600 flex items-center" role="alert">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.firstName}
-                  </p>
-                )}
+
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Last Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="w-5 h-5 text-gray-400" aria-hidden="true" />
+                    </div>
+                    <input
+                      id="lastName"
+                      name="lastName"
+                      type="text"
+                      autoComplete="family-name"
+                      required
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
+                      className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 focus:outline-none transition-colors ${
+                        errors.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter your last name"
+                      aria-invalid={!!errors.lastName}
+                      aria-describedby={errors.lastName ? 'lastName-error' : undefined}
+                    />
+                  </div>
+                  {errors.lastName && (
+                    <p id="lastName-error" className="mt-2 text-sm text-red-600 flex items-center" role="alert">
+                      <AlertCircle className="w-4 h-4 mr-1" />
+                      {errors.lastName}
+                    </p>
+                  )}
+                </div>
               </div>
 
+              {/* Middle Name Field */}
               <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Name
+                <label htmlFor="middleName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Middle Name <span className="text-gray-400 font-normal">(Optional - helps with family connections)</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <User className="w-5 h-5 text-gray-400" aria-hidden="true" />
                   </div>
                   <input
-                    id="lastName"
-                    name="lastName"
+                    id="middleName"
+                    name="middleName"
                     type="text"
-                    autoComplete="family-name"
-                    required
-                    value={formData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
+                    autoComplete="additional-name"
+                    value={formData.middleName}
+                    onChange={(e) => handleInputChange('middleName', e.target.value)}
                     className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500 focus:outline-none transition-colors ${
-                      errors.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                      errors.middleName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="Enter your last name"
-                    aria-invalid={!!errors.lastName}
-                    aria-describedby={errors.lastName ? 'lastName-error' : undefined}
+                    placeholder="Enter your middle name (helps us find your family)"
+                    aria-invalid={!!errors.middleName}
+                    aria-describedby={errors.middleName ? 'middleName-error' : undefined}
                   />
                 </div>
-                {errors.lastName && (
-                  <p id="lastName-error" className="mt-2 text-sm text-red-600 flex items-center" role="alert">
+                {errors.middleName && (
+                  <p id="middleName-error" className="mt-2 text-sm text-red-600 flex items-center" role="alert">
                     <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.lastName}
+                    {errors.middleName}
                   </p>
                 )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Providing your middle name helps us automatically connect you to the correct family tree
+                </p>
               </div>
             </div>
 

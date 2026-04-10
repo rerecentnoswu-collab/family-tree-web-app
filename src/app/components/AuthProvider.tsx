@@ -5,7 +5,7 @@ import { supabase } from '../../../utils/supabase/client';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, middleName: string, lastName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   resendVerificationEmail: (email: string) => Promise<boolean>;
   signOut: () => Promise<void>;
@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+  const signUp = async (email: string, password: string, firstName: string, middleName: string, lastName: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -77,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           data: {
             first_name: firstName,
+            middle_name: middleName,
             last_name: lastName,
           },
         },

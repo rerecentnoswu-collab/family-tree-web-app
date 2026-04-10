@@ -1,83 +1,43 @@
-// Sample family data for testing the family tree
-export const sampleFamilyMembers = [
+import { Person } from '../types/Person';
+
+export const sampleFamilyMembers: Person[] = [
   {
     id: '1',
     firstName: 'John',
-    middleName: 'William',
     lastName: 'Smith',
-    birthday: '1950-03-15',
+    birthday: '1950-01-01',
     birthplace: 'New York, USA',
     gender: 'male',
-    motherId: undefined,
-    fatherId: undefined,
-    spouse_ids: ['2'],
-    events: [],
-    occupation: 'Engineer',
-    marriageDate: '1974-06-15',
-    marriageStatus: 'married'
+    occupation: 'Engineer'
   },
   {
     id: '2',
-    firstName: 'Mary',
-    middleName: 'Elizabeth',
+    firstName: 'Jane',
     lastName: 'Smith',
-    birthday: '1952-07-22',
-    birthplace: 'Boston, USA',
+    birthday: '1952-03-15',
+    birthplace: 'New York, USA',
     gender: 'female',
-    motherId: undefined,
-    fatherId: undefined,
-    spouse_ids: ['1'],
-    events: [],
     occupation: 'Teacher',
-    marriageDate: '1974-06-15',
-    marriageStatus: 'married'
+    spouse_ids: ['1']
   },
   {
     id: '3',
-    firstName: 'Robert',
-    middleName: 'James',
+    firstName: 'Michael',
     lastName: 'Smith',
-    birthday: '1975-11-08',
+    birthday: '1975-06-20',
     birthplace: 'New York, USA',
     gender: 'male',
-    motherId: '2',
     fatherId: '1',
-    spouse_ids: ['4'],
-    events: [],
-    occupation: 'Doctor',
-    marriageDate: '2000-09-20',
-    marriageStatus: 'married'
+    motherId: '2'
   },
   {
     id: '4',
     firstName: 'Sarah',
-    middleName: 'Anne',
     lastName: 'Smith',
-    birthday: '1978-02-14',
-    birthplace: 'Chicago, USA',
-    gender: 'female',
-    motherId: undefined,
-    fatherId: undefined,
-    spouse_ids: ['3'],
-    events: [],
-    occupation: 'Nurse',
-    marriageDate: '2000-09-20',
-    marriageStatus: 'married'
-  },
-  {
-    id: '5',
-    firstName: 'Emily',
-    middleName: 'Rose',
-    lastName: 'Smith',
-    birthday: '2005-06-15',
+    birthday: '1978-09-10',
     birthplace: 'New York, USA',
     gender: 'female',
-    motherId: '4',
-    fatherId: '3',
-    spouse_ids: [],
-    events: [],
-    occupation: 'Student',
-    marriageDate: undefined,
-    marriageStatus: 'single'
+    fatherId: '1',
+    motherId: '2'
   }
 ];

@@ -46,7 +46,7 @@ export const useFamilyTreeData = (
     // Create nodes for each person
     Object.entries(groupedByGeneration).forEach(([generation, genPersons]) => {
       genPersons.forEach((person, index) => {
-        const anniversaryInfo = showAnniversaries ? getAnniversaryInfo(person) : undefined;
+        const anniversaryInfo = showAnniversaries ? getAnniversaryInfo(person.birthday) : undefined;
         
         nodes.push({
           id: person.id,

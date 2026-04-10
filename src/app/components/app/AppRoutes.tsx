@@ -2,7 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import { Person } from '../../types/Person';
 import { PersonForm } from '../PersonForm';
 import { PersonCard } from '../PersonCard';
-import { FamilyTreeEnhanced } from '../FamilyTree-Enhanced';
+import { FamilyTree } from '../FamilyTree';
+import { FamilyInvitationSender } from '../FamilyInvitationSender';
 import { StoryGenerator } from '../StoryGenerator';
 import { Dashboard } from '../Dashboard';
 import { InteractiveTimeline } from '../InteractiveTimeline';
@@ -62,7 +63,12 @@ export const AppRoutes = ({ persons, dataLoading, onPersonAdded }: AppRoutesProp
           </div>
         }
       />
-      <Route path="/tree" element={<FamilyTreeEnhanced persons={persons} />} />
+      <Route path="/tree" element={
+        <div>
+          <FamilyInvitationSender persons={persons} />
+          <FamilyTree persons={persons} />
+        </div>
+      } />
       <Route path="/timeline" element={<InteractiveTimeline persons={persons} />} />
       <Route path="/photos" element={<PhotoRecognition onFacesDetected={() => {}} onPersonMatched={() => {}} />} />
       <Route path="/dna" element={<DNAAnalysis persons={persons} />} />

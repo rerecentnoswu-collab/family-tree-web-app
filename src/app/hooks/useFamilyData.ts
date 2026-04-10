@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getPersons, initializeDatabase, type Person as DBPerson } from '../../../utils/supabase/client';
+import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../utils/supabase/client';
 import { Person } from '../types/Person';
-import { sampleFamilyMembers } from '../components/SampleDataSeeder';
 
 const dbToAppPerson = (dbPerson: DBPerson): Person => ({
   id: dbPerson.id,
@@ -23,6 +22,13 @@ export interface UseFamilyDataReturn {
   error: string | null;
   needsSetup: boolean;
   refetch: () => Promise<void>;
+  familyInheritance: {
+    hasInvitations: boolean;
+    invitations: any[];
+    familyMatches: any[];
+    error?: string;
+  } | null;
+  acceptInvitation: (invitationId: string) => Promise<void>;
 }
 
 export const useFamilyData = (user: any): UseFamilyDataReturn => {
@@ -30,6 +36,7 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [familyInheritance, setFamilyInheritance] = useState<UseFamilyDataReturn['familyInheritance']>(null);
 
   const fetchPersons = async () => {
     if (!user) {
@@ -59,15 +66,74 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
       const data = await getPersons();
       
       if (!data || data.length === 0) {
-        console.log(' No persons found in database - using sample data');
-        setPersons(sampleFamilyMembers);
+        console.log(' No persons found in database - checking for family inheritance');
+        setPersons([]); // Start with empty family tree
+        
+        // Check for family inheritance opportunities
+        if (user.email) {
+          try {
+            // First, try automatic family mapping based on user's name
+            const userFirstName = user.user_metadata?.first_name || '';
+            const userMiddleName = user.user_metadata?.middle_name || '';
+            const userLastName = user.user_metadata?.last_name || '';
+            
+            if (userFirstName && userLastName) {
+              console.log('🔍 Attempting automatic family mapping...');
+              try {
+                const autoMapResult = await autoMapFamilyTree(userFirstName, userMiddleName, userLastName, user.email);
+                if (autoMapResult.success && 'familyMembersConnected' in autoMapResult) {
+                  console.log(`✅ Automatic family mapping successful! Connected to ${autoMapResult.familyMembersConnected} family members`);
+                  // Refetch data to get the mapped family tree
+                  await fetchPersons();
+                  return;
+                } else {
+                  console.log(`⚠️ Automatic mapping failed (${autoMapResult.confidence}% confidence). Checking invitations...`);
+                }
+              } catch (autoMapError) {
+                console.log('❌ Automatic mapping error, falling back to invitation check:', autoMapError);
+              }
+            }
+            
+            // Fallback to invitation-based inheritance
+            const inheritanceResult = await checkFamilyInheritance(user.email);
+            setFamilyInheritance(inheritanceResult);
+            console.log(' Family inheritance check completed:', inheritanceResult);
+          } catch (inheritanceError) {
+            console.error(' Error checking family inheritance:', inheritanceError);
+            setFamilyInheritance({
+              hasInvitations: false,
+              invitations: [],
+              familyMatches: [],
+              error: inheritanceError instanceof Error ? inheritanceError.message : 'Failed to check family inheritance'
+            });
+          }
+        }
       } else {
-        console.log(` Successfully fetched ${data.length} persons`);
+        console.log(` Successfully fetched ${data.length} persons for user ${user.id}`);
         setPersons(data.map(dbToAppPerson));
+        setFamilyInheritance(null); // No inheritance needed if user has data
       }
     } catch (error) {
       console.error(' Error fetching persons:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch persons');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const acceptInvitation = async (invitationId: string) => {
+    try {
+      setLoading(true);
+      const result = await acceptFamilyInvitation(invitationId);
+      
+      if (result.success) {
+        console.log(` Successfully inherited ${result.inheritedMembers} family members`);
+        // Refetch persons to get the updated family tree
+        await fetchPersons();
+      }
+    } catch (error) {
+      console.error(' Error accepting family invitation:', error);
+      setError(error instanceof Error ? error.message : 'Failed to accept family invitation');
     } finally {
       setLoading(false);
     }
@@ -84,6 +150,8 @@ export const useFamilyData = (user: any): UseFamilyDataReturn => {
     loading,
     error,
     needsSetup,
-    refetch: fetchPersons
+    refetch: fetchPersons,
+    familyInheritance,
+    acceptInvitation
   };
 };

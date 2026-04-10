@@ -185,7 +185,7 @@ export function AppLayout({ children, signOut, user }: AppLayoutProps) {
 
   // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (_event: MouseEvent) => {
       if (userMenuOpen) setUserMenuOpen(false);
       if (notificationsOpen) setNotificationsOpen(false);
     };
