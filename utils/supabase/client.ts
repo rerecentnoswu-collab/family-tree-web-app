@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// ✅ Read from environment variables
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+// Read from environment variables
+const supabaseUrl = (import.meta.env as any)?.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = (import.meta.env as any)?.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error(' Supabase credentials missing!');
@@ -18,6 +18,7 @@ export interface Person {
   last_name: string;
   birthday?: string;
   birthplace?: string;
+  occupation?: string;
   mother_id?: string;
   father_id?: string;
   gender?: 'male' | 'female' | 'other';
@@ -77,6 +78,69 @@ export async function initializeDatabase() {
     };
   }
 }
+
+// VALIDATION FUNCTION
+
+// Validation function for person data
+function validatePersonData(person: Partial<Person>): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Required fields validation
+  if (!person.first_name || person.first_name.trim().length === 0) {
+    errors.push('First name is required');
+  }
+  
+  if (!person.last_name || person.last_name.trim().length === 0) {
+    errors.push('Last name is required');
+  }
+  
+  // Name length validation
+  if (person.first_name && person.first_name.length > 100) {
+    errors.push('First name must be less than 100 characters');
+  }
+  
+  if (person.last_name && person.last_name.length > 100) {
+    errors.push('Last name must be less than 100 characters');
+  }
+  
+  if (person.middle_name && person.middle_name.length > 100) {
+    errors.push('Middle name must be less than 100 characters');
+  }
+  
+  // Gender validation
+  if (person.gender && !['male', 'female', 'other'].includes(person.gender)) {
+    errors.push('Gender must be male, female, or other');
+  }
+  
+  // Birthday validation
+  if (person.birthday) {
+    const birthday = new Date(person.birthday);
+    const now = new Date();
+    if (birthday > now) {
+      errors.push('Birthday cannot be in the future');
+    }
+    if (birthday < new Date('1800-01-01')) {
+      errors.push('Birthday cannot be before year 1800');
+    }
+  }
+  
+  // Birthplace validation
+  if (person.birthplace && person.birthplace.length > 200) {
+    errors.push('Birthplace must be less than 200 characters');
+  }
+  
+  // Occupation validation
+  if (person.occupation && person.occupation.length > 100) {
+    errors.push('Occupation must be less than 100 characters');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+// COMPREHENSIVE READ FUNCTIONS
 
 // Get all persons for the current user
 export async function getPersons() {
@@ -161,45 +225,6 @@ export async function searchPersons(query: string, filters?: {
   return data || [];
 }
 
-// Get persons by relationship type
-export async function getPersonsByRelationship(relationshipType: 'parents' | 'children' | 'siblings' | 'spouses', personId?: string) {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  
-  let queryBuilder = supabase
-    .from('persons')
-    .select('*')
-    .eq('user_id', user.id);
-  
-  switch (relationshipType) {
-    case 'parents':
-      queryBuilder = queryBuilder.or(`mother_id.eq.${personId},father_id.eq.${personId}`);
-      break;
-    case 'children':
-      queryBuilder = queryBuilder.or(`mother_id.eq.${personId},father_id.eq.${personId}`);
-      break;
-    case 'siblings':
-      if (personId) {
-        // Get person first to find their parents
-        const { data: person } = await getPersonById(personId);
-        if (person?.mother_id || person?.father_id) {
-          queryBuilder = queryBuilder.or(`mother_id.eq.${person.mother_id},father_id.eq.${person.father_id}`);
-        }
-      }
-      break;
-    case 'spouses':
-      // This would need a separate relationships table for proper implementation
-      queryBuilder = queryBuilder.ilike('last_name', `%${personId}%`);
-      break;
-  }
-  
-  const { data, error } = await queryBuilder.order('created_at', { ascending: false });
-  
-  if (error) throw new Error(`Failed to fetch ${relationshipType}: ${error.message}`);
-  return data || [];
-}
-
 // Get family statistics
 export async function getFamilyStatistics() {
   // Get current user
@@ -244,6 +269,8 @@ export async function getFamilyStatistics() {
   };
 }
 
+// COMPREHENSIVE CREATE FUNCTIONS
+
 // Add a new person
 export async function addPerson(person: Omit<Person, 'id' | 'created_at' | 'updated_at'>) {
   // Get current user
@@ -254,7 +281,7 @@ export async function addPerson(person: Omit<Person, 'id' | 'created_at' | 'upda
     .from('persons')
     .insert([{
       ...person,
-      user_id: user.id, // ✅ Add owner
+      user_id: user.id, // Add owner
     }])
     .select()
     .single();
@@ -262,6 +289,53 @@ export async function addPerson(person: Omit<Person, 'id' | 'created_at' | 'upda
   if (error) throw error;
   return data;
 }
+
+// Add a new family member with validation
+export async function addFamilyMember(member: Omit<Person, 'id' | 'created_at' | 'updated_at'>) {
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  
+  // Validate input data
+  const validation = validatePersonData(member);
+  if (!validation.isValid) {
+    throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+  }
+  
+  // Check for duplicates
+  const { data: existingPersons, error: checkError } = await supabase
+    .from('persons')
+    .select('id, first_name, last_name, birthday')
+    .eq('user_id', user.id)
+    .or(`and(first_name.eq.${member.first_name},last_name.eq.${member.last_name})`);
+  
+  if (checkError) throw new Error(`Failed to check for duplicates: ${checkError.message}`);
+  
+  // Check for exact duplicate (same name and birthday)
+  const exactDuplicate = existingPersons?.find(p => 
+    p.first_name.toLowerCase() === member.first_name.toLowerCase() &&
+    p.last_name.toLowerCase() === member.last_name.toLowerCase() &&
+    p.birthday === member.birthday
+  );
+  
+  if (exactDuplicate) {
+    throw new Error(`A family member named ${member.first_name} ${member.last_name} with the same birthday already exists`);
+  }
+
+  const { data, error } = await supabase
+    .from('persons')
+    .insert([{
+      ...member,
+      user_id: user.id, // Add owner
+    }])
+    .select()
+    .single();
+  
+  if (error) throw new Error(`Failed to add family member: ${error.message}`);
+  return data;
+}
+
+// COMPREHENSIVE UPDATE FUNCTIONS
 
 // Update a person
 export async function updatePerson(id: string, updates: Partial<Person>) {
@@ -273,7 +347,7 @@ export async function updatePerson(id: string, updates: Partial<Person>) {
     .from('persons')
     .update(updates)
     .eq('id', id)
-    .eq('user_id', user.id) // ✅ Ensure user owns the record
+    .eq('user_id', user.id) // Ensure user owns the record
     .select()
     .single();
   
@@ -281,62 +355,7 @@ export async function updatePerson(id: string, updates: Partial<Person>) {
   return data;
 }
 
-// Delete a person
-export async function deletePerson(id: string) {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Check if person exists and belongs to user
-  const { data: person, error: checkError } = await supabase
-    .from('persons')
-    .select('id, first_name, last_name')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single();
-  
-  if (checkError) throw new Error(`Failed to verify person: ${checkError.message}`);
-  if (!person) throw new Error('Person not found or access denied');
-
-  // Check for dependent relationships
-  const { data: dependents, error: dependentError } = await supabase
-    .from('persons')
-    .select('id, first_name, last_name')
-    .or(`mother_id.eq.${id},father_id.eq.${id}`)
-    .eq('user_id', user.id);
-  
-  if (dependentError) throw new Error(`Failed to check dependents: ${dependentError.message}`);
-  
-  if (dependents && dependents.length > 0) {
-    const dependentNames = dependents.map(d => `${d.first_name} ${d.last_name}`).join(', ');
-    throw new Error(`Cannot delete ${person.first_name} ${person.last_name} because they have dependents: ${dependentNames}. Please remove or reassign dependents first.`);
-  }
-
-  const { error } = await supabase
-    .from('persons')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id); // Ensure user owns the record
-  
-  if (error) throw new Error(`Failed to delete person: ${error.message}`);
-  
-  return { success: true, deletedPerson: person };
-}
-
-// Add a new family member
-export async function addFamilyMember(member: Omit<Person, 'id' | 'created_at' | 'updated_at'>) {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { data, error } = await supabase
-    .from('persons')
-    .insert([{
-      ...member,
-      user_id: user.id, // ✅ Add owner
-    }])
-    .select()
-    .single();
+// Update family member with validation
 export async function updateFamilyMember(id: string, updates: Partial<Person>) {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
@@ -381,7 +400,7 @@ export async function updateFamilyMember(id: string, updates: Partial<Person>) {
     .from('persons')
     .update(updates)
     .eq('id', id)
-    .eq('user_id', user.id) // ✅ Ensure user owns the record
+    .eq('user_id', user.id) // Ensure user owns the record
     .select()
     .single();
   
@@ -395,8 +414,8 @@ export async function updateFamilyMembers(updates: Array<{ id: string; updates: 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   
-  const results = [];
-  const errors = [];
+  const results: Array<{ id: string; success: boolean; data?: any }> = [];
+  const errors: string[] = [];
   
   for (const { id, updates: personUpdates } of updates) {
     try {
@@ -429,7 +448,52 @@ export async function updateFamilyMembers(updates: Array<{ id: string; updates: 
     throw new Error(`Batch update failed: ${errors.join('; ')}`);
   }
   
-// ✅ ENHANCED DELETE FUNCTIONS
+  return results;
+}
+
+// COMPREHENSIVE DELETE FUNCTIONS
+
+// Delete a person
+export async function deletePerson(id: string) {
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Check if person exists and belongs to user
+  const { data: person, error: checkError } = await supabase
+    .from('persons')
+    .select('id, first_name, last_name')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single();
+  
+  if (checkError) throw new Error(`Failed to verify person: ${checkError.message}`);
+  if (!person) throw new Error('Person not found or access denied');
+
+  // Check for dependent relationships
+  const { data: dependents, error: dependentError } = await supabase
+    .from('persons')
+    .select('id, first_name, last_name')
+    .or(`mother_id.eq.${id},father_id.eq.${id}`)
+    .eq('user_id', user.id);
+  
+  if (dependentError) throw new Error(`Failed to check dependents: ${dependentError.message}`);
+  
+  if (dependents && dependents.length > 0) {
+    const dependentNames = dependents.map(d => `${d.first_name} ${d.last_name}`).join(', ');
+    throw new Error(`Cannot delete ${person.first_name} ${person.last_name} because they have dependents: ${dependentNames}. Please remove or reassign dependents first.`);
+  }
+
+  const { error } = await supabase
+    .from('persons')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id); // Ensure user owns the record
+  
+  if (error) throw new Error(`Failed to delete person: ${error.message}`);
+  
+  return { success: true, deletedPerson: person };
+}
 
 // Delete a family member with comprehensive validation
 export async function deleteFamilyMember(id: string) {
@@ -473,78 +537,6 @@ export async function deleteFamilyMember(id: string) {
   return { success: true, deletedPerson: person };
 }
 
-// Soft delete family member (marks as deleted but keeps record)
-export async function softDeleteFamilyMember(id: string, reason?: string) {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Check if person exists and belongs to user
-  const { data: person, error: checkError } = await supabase
-    .from('persons')
-    .select('id, first_name, last_name')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single();
-  
-  if (checkError) throw new Error(`Failed to verify person: ${checkError.message}`);
-  if (!person) throw new Error('Person not found or access denied');
-
-  // Mark as deleted instead of actual deletion
-  const { data, error } = await supabase
-    .from('persons')
-    .update({
-      deleted_at: new Date().toISOString(),
-      deleted_reason: reason || 'User deletion',
-      is_deleted: true
-    })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single();
-  
-  if (error) throw new Error(`Failed to soft delete person: ${error.message}`);
-  return { success: true, deletedPerson: person };
-}
-
-// Restore a soft-deleted family member
-export async function restoreFamilyMember(id: string) {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Check if person exists and belongs to user
-  const { data: person, error: checkError } = await supabase
-    .from('persons')
-    .select('id, first_name, last_name')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single();
-  
-  if (checkError) throw new Error(`Failed to verify person: ${checkError.message}`);
-  if (!person) throw new Error('Person not found or access denied');
-  
-  if (!person.is_deleted) {
-    throw new Error('Person is not deleted and cannot be restored');
-  }
-
-  // Restore the person
-  const { data, error } = await supabase
-    .from('persons')
-    .update({
-      deleted_at: null,
-      deleted_reason: null,
-      is_deleted: false
-    })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single();
-  
-  if (error) throw new Error(`Failed to restore person: ${error.message}`);
-  return { success: true, restoredPerson: data };
-}
-
 // Batch delete multiple family members
 export async function batchDeleteFamilyMember(ids: string[], options?: { skipDependentsCheck?: boolean; reason?: string }) {
   // Get current user
@@ -568,7 +560,7 @@ export async function batchDeleteFamilyMember(ids: string[], options?: { skipDep
   }
   
   // Perform batch deletion
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('persons')
     .delete()
     .in('id', ids)
@@ -577,23 +569,6 @@ export async function batchDeleteFamilyMember(ids: string[], options?: { skipDep
   if (error) throw new Error(`Batch delete failed: ${error.message}`);
   
   return { success: true, deletedCount: ids.length };
-}
-
-// Get deleted family members (for admin/recovery purposes)
-export async function getDeletedFamilyMembers() {
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-  
-  const { data, error } = await supabase
-    .from('persons')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('is_deleted', true)
-    .order('deleted_at', { ascending: false });
-  
-  if (error) throw new Error(`Failed to fetch deleted members: ${error.message}`);
-  return data || [];
 }
 
 // AI-powered parent matching
@@ -668,8 +643,6 @@ export async function findPotentialParents(person: Person) {
   };
 }
 
-// ✅ FAMILY RELATIONSHIP INHERITANCE FUNCTIONS
-
 // Check if user is a child in existing family relationships
 export async function checkFamilyInheritance(userEmail: string) {
   try {
@@ -688,13 +661,8 @@ export async function checkFamilyInheritance(userEmail: string) {
       throw invitationError;
     }
 
-    // If no invitations table, check for direct family matches
-    if (!invitations || invitations.length === 0) {
-      return await findFamilyMatchesByEmail(userEmail);
-    }
-
     return {
-      hasInvitations: invitations.length > 0,
+      hasInvitations: (invitations && invitations.length > 0) || false,
       invitations: invitations || [],
       familyMatches: []
     };
@@ -709,29 +677,95 @@ export async function checkFamilyInheritance(userEmail: string) {
   }
 }
 
-// Find potential family matches by email and name patterns
-export async function findFamilyMatchesByEmail(userEmail: string) {
+// Accept family invitation and inherit family tree
+export async function acceptFamilyInvitation(invitationId: string) {
   try {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Extract name from email for potential matching
-    const emailName = userEmail.split('@')[0];
-    const emailParts = emailName.split('.');
-    const firstName = emailParts[0];
-    const lastName = emailParts[emailParts.length - 1];
+    // Get invitation details
+    const { data: invitation, error: invitationError } = await supabase
+      .from('family_invitations')
+      .select('*')
+      .eq('id', invitationId)
+      .eq('invited_email', user.email?.toLowerCase())
+      .single();
+    
+    if (invitationError) throw invitationError;
+    if (!invitation) throw new Error('Invitation not found');
+
+    // Update invitation status
+    const { error: updateError } = await supabase
+      .from('family_invitations')
+      .update({ status: 'accepted' })
+      .eq('id', invitationId);
+    
+    if (updateError) throw updateError;
+
+    return { success: true, invitation };
+  } catch (error) {
+    console.error('Error accepting family invitation:', error);
+    throw error instanceof Error ? error : new Error('Failed to accept family invitation');
+  }
+}
+
+// Create family invitation
+export async function createFamilyInvitation(invitedEmail: string, relationshipType: 'parent' | 'child' | 'spouse' | 'sibling', personId: string) {
+  try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Verify person belongs to user
+    const { data: person, error: personError } = await supabase
+      .from('persons')
+      .select('id, first_name, last_name')
+      .eq('id', personId)
+      .eq('user_id', user.id)
+      .single();
+    
+    if (personError) throw personError;
+    if (!person) throw new Error('Person not found or access denied');
+
+    // Create invitation
+    const { data, error } = await supabase
+      .from('family_invitations')
+      .insert([{
+        inviter_user_id: user.id,
+        invited_email: invitedEmail.toLowerCase(),
+        relationship_type: relationshipType,
+        person_id: personId,
+        status: 'pending'
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error creating family invitation:', error);
+    throw error instanceof Error ? error : new Error('Failed to create family invitation');
+  }
+}
+
+// Automatic family tree mapping based on user name and age heuristics
+export async function autoMapFamilyTree(firstName: string, middleName: string, lastName: string, userEmail: string) {
+  try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
 
     // Search for potential family members across all users (with security constraints)
     const { data: potentialMatches, error } = await supabase
       .from('persons')
       .select('*')
       .or(`first_name.ilike.%${firstName}%,last_name.ilike.%${lastName}%`)
-      .limit(20);
+      .limit(50);
     
     if (error) throw error;
 
-    // Filter and score matches based on relationship likelihood
+    // Score matches based on relationship likelihood
     const scoredMatches = (potentialMatches || []).map(person => {
       let score = 0;
       let relationshipType = '';
@@ -742,6 +776,9 @@ export async function findFamilyMatchesByEmail(userEmail: string) {
       }
       if (person.last_name?.toLowerCase() === lastName.toLowerCase()) {
         score += 40;
+      }
+      if (middleName && person.middle_name?.toLowerCase() === middleName.toLowerCase()) {
+        score += 20;
       }
 
       // Determine likely relationship based on age and other factors
@@ -768,405 +805,64 @@ export async function findFamilyMatchesByEmail(userEmail: string) {
       };
     }).filter(match => match.score > 30);
 
-    return {
-      hasInvitations: false,
-      invitations: [],
-      familyMatches: scoredMatches.sort((a, b) => b.score - a.score)
-    };
-  } catch (error) {
-    console.error('Error finding family matches:', error);
-    return {
-      hasInvitations: false,
-      invitations: [],
-      familyMatches: [],
-      error: error instanceof Error ? error.message : 'Failed to find family matches'
-    };
-  }
-}
+    // Sort by confidence score
+    scoredMatches.sort((a, b) => b.score - a.score);
 
-// Accept family invitation and inherit family tree
-export async function acceptFamilyInvitation(invitationId: string) {
-  try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    // If high confidence matches found, create copies for current user
+    if (scoredMatches.length > 0 && scoredMatches[0].confidence === 'high') {
+      const familyMembersToCopy = scoredMatches.filter(m => m.confidence === 'high');
+      const copiedMembers = [];
 
-    // Get invitation details
-    const { data: invitation, error: invitationError } = await supabase
-      .from('family_invitations')
-      .select('*')
-      .eq('id', invitationId)
-      .eq('invited_email', user.email?.toLowerCase())
-      .single();
-    
-    if (invitationError) throw invitationError;
-    if (!invitation) throw new Error('Invitation not found');
+      for (const match of familyMembersToCopy) {
+        const { person } = match;
+        
+        // Create a copy of the person for the current user
+        const { data: copiedPerson, error: copyError } = await supabase
+          .from('persons')
+          .insert([{
+            first_name: person.first_name,
+            middle_name: person.middle_name,
+            last_name: person.last_name,
+            birthday: person.birthday,
+            birthplace: person.birthplace,
+            gender: person.gender,
+            user_id: user.id // Assign to current user
+          }])
+          .select()
+          .single();
 
-    // Get the person this invitation relates to
-    const { data: relatedPerson, error: personError } = await supabase
-      .from('persons')
-      .select('*')
-      .eq('id', invitation.person_id)
-      .single();
-    
-    if (personError) throw personError;
-    if (!relatedPerson) throw new Error('Related person not found');
+        if (!copyError && copiedPerson) {
+          copiedMembers.push(copiedPerson);
+        }
+      }
 
-    // Get family members from the inviter's account
-    const { data: familyMembers, error: familyError } = await supabase
-      .from('persons')
-      .select('*')
-      .eq('user_id', invitation.inviter_user_id);
-    
-    if (familyError) throw familyError;
-
-    // Copy family members to current user's account (excluding the person themselves)
-    const personsToAdd = (familyMembers || []).filter(p => p.id !== invitation.person_id);
-    
-    if (personsToAdd.length > 0) {
-      const { error: insertError } = await supabase
-        .from('persons')
-        .insert(personsToAdd.map(p => ({
-          ...p,
-          user_id: user.id, // Assign to current user
-          id: undefined // Let database generate new ID
-        })));
-      
-      if (insertError) throw insertError;
+      return {
+        success: true,
+        familyMembersConnected: copiedMembers.length,
+        confidence: 85,
+        sourceUser: userEmail,
+        matches: scoredMatches
+      };
     }
 
-    // Update invitation status
-    const { error: updateError } = await supabase
-      .from('family_invitations')
-      .update({ status: 'accepted' })
-      .eq('id', invitationId);
-    
-    if (updateError) throw updateError;
-
-    return {
-      success: true,
-      inheritedMembers: personsToAdd.length
-    };
-  } catch (error) {
-    console.error('Error accepting family invitation:', error);
-    throw error;
-  }
-}
-
-// Create family invitation
-export async function createFamilyInvitation(
-  invitedEmail: string, 
-  relationshipType: 'parent' | 'child' | 'spouse' | 'sibling',
-  personId: string
-) {
-  try {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    // Verify person belongs to current user
-    const { data: person, error: personError } = await supabase
-      .from('persons')
-      .select('*')
-      .eq('id', personId)
-      .eq('user_id', user.id)
-      .single();
-    
-    if (personError) throw personError;
-    if (!person) throw new Error('Person not found or access denied');
-
-    // Create invitation
-    const { data, error } = await supabase
-      .from('family_invitations')
-      .insert([{
-        inviter_user_id: user.id,
-        invited_email: invitedEmail.toLowerCase(),
-        relationship_type: relationshipType,
-        person_id: personId,
-        status: 'pending'
-      }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error creating family invitation:', error);
-    throw error;
-  }
-}
-
-// ✅ AUTOMATIC FAMILY MAPPING BASED ON NAME ANALYSIS
-
-// Advanced family mapping algorithm using name patterns and relationships
-export async function autoMapFamilyTree(
-  firstName: string, 
-  middleName: string, 
-  lastName: string, 
-  email: string
-) {
-  try {
-    console.log(`🔍 Starting automatic family mapping for: ${firstName} ${middleName} ${lastName}`);
-    
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    // Step 1: Search for potential parents based on last name matching
-    const potentialParents = await findPotentialParentsByName(firstName, middleName, lastName);
-    
-    // Step 2: Search for potential siblings based on name patterns
-    const potentialSiblings = await findPotentialSiblingsByName(firstName, middleName, lastName);
-    
-    // Step 3: Analyze results and determine best matches
-    const familyMatches = analyzeFamilyMatches(potentialParents, potentialSiblings, firstName, middleName, lastName);
-    
-    // Step 4: If high-confidence matches found, create automatic connections
-    if (familyMatches.confidence > 80) {
-      console.log(`✅ High-confidence family match found (${familyMatches.confidence}% confidence)`);
-      return await createAutomaticFamilyConnections(familyMatches, user.id, firstName, middleName, lastName);
-    }
-    
-    console.log(`⚠️ No high-confidence matches found. Confidence: ${familyMatches.confidence}%`);
     return {
       success: false,
-      confidence: familyMatches.confidence,
-      matches: familyMatches,
-      reason: 'No high-confidence family matches found'
+      confidence: scoredMatches.length > 0 ? Math.max(...scoredMatches.map(m => m.score)) : 0,
+      matches: {
+        confidence: scoredMatches.length > 0 ? Math.max(...scoredMatches.map(m => m.score)) : 0,
+        parents: scoredMatches.filter(m => m.relationshipType === 'parent'),
+        siblings: scoredMatches.filter(m => m.relationshipType === 'sibling'),
+        allMatches: scoredMatches
+      },
+      reason: scoredMatches.length === 0 ? 'No matching family members found' : 'Insufficient confidence for automatic mapping'
     };
-    
   } catch (error) {
     console.error('Error in automatic family mapping:', error);
-    throw error;
-  }
-}
-
-// Find potential parents based on last name and middle name patterns
-async function findPotentialParentsByName(
-  firstName: string, 
-  middleName: string, 
-  lastName: string
-) {
-  try {
-    // Search for persons with matching last names who could be parents
-    const { data: potentialParents, error } = await supabase
-      .from('persons')
-      .select('*')
-      .or(`last_name.ilike.%${lastName}%,middle_name.ilike.%${middleName}%`)
-      .neq('user_id', (await supabase.auth.getUser()).data.user?.id)
-      .limit(50);
-    
-    if (error) throw error;
-    
-    // Score potential parents based on multiple factors
-    const scoredParents = (potentialParents || []).map(parent => {
-      let score = 0;
-      let relationshipType = '';
-      
-      // Last name exact match (strong indicator)
-      if (parent.last_name?.toLowerCase() === lastName.toLowerCase()) {
-        score += 50;
-      }
-      
-      // Middle name match (very strong for mother's maiden name patterns)
-      if (parent.middle_name && middleName && 
-          parent.middle_name.toLowerCase() === middleName.toLowerCase()) {
-        score += 30;
-      }
-      
-      // Age-based analysis - parents should be older
-      if (parent.birthday) {
-        const parentAge = new Date().getFullYear() - new Date(parent.birthday).getFullYear();
-        if (parentAge >= 18 && parentAge <= 70) {
-          score += 20;
-          relationshipType = parentAge >= 35 ? 'parent' : 'sibling';
-        }
-      }
-      
-      // Gender-based relationship inference
-      if (parent.gender === 'female') {
-        relationshipType = 'mother';
-      } else if (parent.gender === 'male') {
-        relationshipType = 'father';
-      }
-      
-      return {
-        person: parent,
-        score,
-        relationshipType,
-        confidence: score > 70 ? 'high' : score > 50 ? 'medium' : 'low'
-      };
-    }).filter(match => match.score > 30);
-    
-    return scoredParents.sort((a, b) => b.score - a.score);
-  } catch (error) {
-    console.error('Error finding potential parents:', error);
-    return [];
-  }
-}
-
-// Find potential siblings based on name patterns
-async function findPotentialSiblingsByName(
-  firstName: string, 
-  middleName: string, 
-  lastName: string
-) {
-  try {
-    // Search for persons with same last name and similar age ranges
-    const { data: potentialSiblings, error } = await supabase
-      .from('persons')
-      .select('*')
-      .eq('last_name', lastName)
-      .neq('user_id', (await supabase.auth.getUser()).data.user?.id)
-      .limit(30);
-    
-    if (error) throw error;
-    
-    // Score potential siblings
-    const scoredSiblings = (potentialSiblings || []).map(sibling => {
-      let score = 0;
-      
-      // Same last name (required for siblings)
-      if (sibling.last_name?.toLowerCase() === lastName.toLowerCase()) {
-        score += 40;
-      }
-      
-      // Same middle name (strong sibling indicator)
-      if (sibling.middle_name && middleName && 
-          sibling.middle_name.toLowerCase() === middleName.toLowerCase()) {
-        score += 30;
-      }
-      
-      // Age similarity (siblings usually close in age)
-      if (sibling.birthday) {
-        const siblingAge = new Date().getFullYear() - new Date(sibling.birthday).getFullYear();
-        // Assume user is around 25 years old for age comparison
-        const userAge = 25;
-        const ageDiff = Math.abs(siblingAge - userAge);
-        
-        if (ageDiff <= 10) {
-          score += 20;
-        } else if (ageDiff <= 15) {
-          score += 10;
-        }
-      }
-      
-      return {
-        person: sibling,
-        score,
-        relationshipType: 'sibling',
-        confidence: score > 60 ? 'high' : score > 40 ? 'medium' : 'low'
-      };
-    }).filter(match => match.score > 30);
-    
-    return scoredSiblings.sort((a, b) => b.score - a.score);
-  } catch (error) {
-    console.error('Error finding potential siblings:', error);
-    return [];
-  }
-}
-
-// Analyze family matches and determine best connections
-function analyzeFamilyMatches(
-  potentialParents: any[], 
-  potentialSiblings: any[], 
-  firstName: string, 
-  middleName: string, 
-  lastName: string
-) {
-  const allMatches = [...potentialParents, ...potentialSiblings];
-  
-  // Calculate overall confidence
-  const totalScore = allMatches.reduce((sum, match) => sum + match.score, 0);
-  const maxPossibleScore = allMatches.length * 100;
-  const confidence = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
-  
-  // Find best matches
-  const bestParents = potentialParents.filter(p => p.confidence === 'high').slice(0, 2);
-  const bestSiblings = potentialSiblings.filter(s => s.confidence === 'high').slice(0, 3);
-  
-  return {
-    confidence: Math.round(confidence),
-    parents: bestParents,
-    siblings: bestSiblings,
-    allMatches: allMatches.sort((a, b) => b.score - a.score)
-  };
-}
-
-// Create automatic family connections when confidence is high
-async function createAutomaticFamilyConnections(
-  familyMatches: any, 
-  userId: string, 
-  firstName: string, 
-  middleName: string, 
-  lastName: string
-) {
-  try {
-    console.log('🔗 Creating automatic family connections...');
-    
-    // Get the family members from the best matches
-    const familyMembers = [...familyMatches.parents, ...familyMatches.siblings];
-    
-    if (familyMembers.length === 0) {
-      throw new Error('No family members to connect');
-    }
-    
-    // Find the user who owns the best match to copy their family tree
-    const bestMatch = familyMembers[0];
-    const sourceUserId = bestMatch.person.user_id;
-    
-    // Get all family members from the source user's tree
-    const { data: sourceFamilyMembers, error } = await supabase
-      .from('persons')
-      .select('*')
-      .eq('user_id', sourceUserId);
-    
-    if (error) throw error;
-    
-    // Create the new user's profile in their family tree
-    const newUserPerson = {
-      first_name: firstName,
-      middle_name: middleName,
-      last_name: lastName,
-      gender: 'other', // Will be updated later
-      user_id: userId
-    };
-    
-    const { data: newUserPersonData, error: newUserError } = await supabase
-      .from('persons')
-      .insert([newUserPerson])
-      .select()
-      .single();
-    
-    if (newUserError) throw newUserError;
-    
-    // Copy all family members to the new user's account
-    const personsToCopy = (sourceFamilyMembers || []).filter(p => p.id !== bestMatch.person.id);
-    
-    if (personsToCopy.length > 0) {
-      const { error: copyError } = await supabase
-        .from('persons')
-        .insert(personsToCopy.map(p => ({
-          ...p,
-          user_id: userId, // Assign to new user
-          id: undefined // Let database generate new ID
-        })));
-      
-      if (copyError) throw copyError;
-    }
-    
-    console.log(`✅ Successfully created family connections with ${personsToCopy.length} family members`);
-    
     return {
-      success: true,
-      confidence: familyMatches.confidence,
-      familyMembersConnected: personsToCopy.length + 1,
-      sourceUser: sourceUserId,
-      matches: familyMatches
+      success: false,
+      confidence: 0,
+      matches: { confidence: 0, parents: [], siblings: [], allMatches: [] },
+      reason: error instanceof Error ? error.message : 'Automatic mapping failed'
     };
-    
-  } catch (error) {
-    console.error('Error creating automatic family connections:', error);
-    throw error;
   }
 }
