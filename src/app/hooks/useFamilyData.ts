@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../../../utils/supabase/client';
+import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../../utils/supabase/client';
 import { Person } from '../types/Person';
 import { useAuth } from './useAuth';
 
