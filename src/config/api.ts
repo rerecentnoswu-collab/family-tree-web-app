@@ -74,7 +74,7 @@ const environments: Record<string, EnvironmentConfig> = {
   },
   production: {
     api: {
-      baseUrl: 'https://api.familytree.com/api',
+      baseUrl: 'https://family-tree-web-app-psi.vercel.app',
       timeout: 20000,
       retryAttempts: 5,
       retryDelay: 3000,
@@ -109,9 +109,9 @@ export const config: EnvironmentConfig = environments[getEnvironment()];
 // API endpoints
 export const apiEndpoints = {
   // Persons
-  persons: '/persons',
-  personById: (id: string) => `/persons/${id}`,
-  personRelationships: (id: string) => `/persons/${id}/relationships`,
+  persons: '/make-server-753cbdd3/persons',
+  personById: (id: string) => `/make-server-753cbdd3/persons/${id}`,
+  personRelationships: (id: string) => `/make-server-753cbdd3/persons/${id}/relationships`,
   
   // Family Tree
   familyTree: '/family-tree',

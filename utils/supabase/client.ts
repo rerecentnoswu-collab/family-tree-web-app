@@ -1,4 +1,37 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { setupDatabaseTables as _setupDatabaseTables, handleTableError } from './databaseSetup';
+
+// Re-export setupDatabaseTables for use in other modules
+export const setupDatabaseTables = _setupDatabaseTables;
+
+// Comprehensive error handling wrapper for all Supabase operations
+export async function safeSupabaseCall<T>(
+  operation: () => Promise<{ data?: T; error?: any }>,
+  tableName: string,
+  fallbackValue?: T
+): Promise<{ data?: T; error?: any; handled?: boolean }> {
+  try {
+    const result = await operation();
+    
+    if (result.error) {
+      const handled = handleTableError(result.error, tableName);
+      if (handled.handled) {
+        console.warn(`Handled error for ${tableName}:`, handled.message);
+        return { data: fallbackValue, error: null, handled: true };
+      }
+      return { error: result.error, handled: false };
+    }
+    
+    return { data: result.data, error: null, handled: false };
+  } catch (error) {
+    const handled = handleTableError(error, tableName);
+    if (handled.handled) {
+      console.warn(`Caught and handled error for ${tableName}:`, handled.message);
+      return { data: fallbackValue, error: null, handled: true };
+    }
+    return { error, handled: false };
+  }
+}
 
 // Read from environment variables
 const supabaseUrl = (import.meta.env as any)?.VITE_SUPABASE_URL || '';
@@ -77,45 +110,56 @@ export async function initializeDatabase() {
       console.error('Authentication error:', authError.message);
       return {
         success: false,
-        error: `Authentication error: ${authError.message}`,
-        needsSetup: false
-      };
-    }
-    
-    if (!user) {
-      console.warn('No authenticated user found during database initialization');
-      return {
-        success: false,
-        error: 'User not authenticated. Please sign in first.',
-        needsSetup: false
-      };
-    }
-
-    // Check if the persons table exists and user has access
-    const { data, error } = await supabase
-      .from('persons')
-      .select('id')
-      .eq('user_id', user.id) // Check user-specific access
-      .limit(1);
-    
-    if (error) {
-      console.error('Database initialization needed:', error.message);
-      return {
-        success: false,
-        error: 'Database tables need to be created. Please run the SQL setup in Supabase.',
+        error: 'Authentication failed',
         needsSetup: true
       };
     }
-    
-    console.log(`Database initialized successfully for user: ${user.id}`);
-    return { success: true };
+
+    if (!user) {
+      return { success: false, error: 'Not authenticated', needsSetup: true };
+    }
+
+    // Check if the persons table exists and user has access
+    try {
+      const { data, error } = await supabase
+        .from('persons')
+        .select('id')
+        .eq('user_id', user.id) // Check user-specific access
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking persons table:', error);
+        if (error.code === 'PGRST116') {
+          // Table doesn't exist
+          return { success: false, error: 'Database not initialized. Please run setup.', needsSetup: true };
+        }
+        return { success: false, error: error.message, needsSetup: true };
+      }
+
+      // Try to setup database tables if they don't exist
+      try {
+        await setupDatabaseTables();
+        console.log('Database tables verified and ready');
+        return { success: true, message: 'Database initialized successfully', needsSetup: false };
+      } catch (setupError) {
+        console.error('Failed to setup database tables:', setupError);
+        return { success: false, error: 'Failed to initialize database tables', needsSetup: true };
+      }
+    } catch (tableError) {
+      console.error('Error accessing persons table:', tableError);
+      // Try to setup database tables anyway
+      try {
+        await setupDatabaseTables();
+        console.log('Database tables created after error');
+        return { success: true, message: 'Database initialized successfully', needsSetup: false };
+      } catch (setupError) {
+        console.error('Failed to create database tables:', setupError);
+        return { success: false, error: 'Failed to initialize database tables', needsSetup: true };
+      }
+    }
   } catch (error) {
-    console.error('Error checking database:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect to database',
-      needsSetup: false
-    };
+    console.error('Error initializing database:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to initialize database', needsSetup: true };
   }
 }
 
@@ -218,14 +262,25 @@ export async function getPersons() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase
-    .from('persons')
-    .select('*')
-    .eq('user_id', user.id) // Filter by current user ID
-    .order('created_at', { ascending: false });
-  
-  if (error) throw error;
-  return data || [];
+  const result = await safeSupabaseCall(
+    async () => {
+      const { data, error } = await supabase
+        .from('persons')
+        .select('*')
+        .eq('user_id', user.id) // Filter by current user ID
+        .order('created_at', { ascending: false });
+      return { data, error };
+    },
+    'persons',
+    [] // Return empty array if table doesn't exist
+  );
+
+  if (result.error && !result.handled) {
+    console.error('Error fetching persons:', result.error);
+    throw result.error;
+  }
+
+  return { data: result.data, error: result.error };
 }
 
 // Get person by ID with validation
@@ -341,11 +396,41 @@ export async function getFamilyStatistics() {
 
 // COMPREHENSIVE CREATE FUNCTIONS
 
-// Add a new person
+// Add a new person with duplicate prevention
 export async function addPerson(person: Omit<Person, 'id' | 'created_at' | 'updated_at'>) {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+
+  // Check for duplicates before adding
+  const { data: existingPersons, error: checkError } = await supabase
+    .from('persons')
+    .select('id, first_name, last_name, birthday')
+    .eq('user_id', user.id)
+    .or(`and(first_name.eq.${person.first_name},last_name.eq.${person.last_name})`);
+  
+  if (checkError) throw new Error(`Failed to check for duplicates: ${checkError.message}`);
+  
+  // Check for exact duplicate (same name and birthday)
+  const exactDuplicate = existingPersons?.find(p => 
+    p.first_name.toLowerCase() === person.first_name.toLowerCase() &&
+    p.last_name.toLowerCase() === person.last_name.toLowerCase() &&
+    p.birthday === person.birthday
+  );
+  
+  if (exactDuplicate) {
+    throw new Error(`A family member named ${person.first_name} ${person.last_name} with the same birthday already exists`);
+  }
+
+  // Check for similar duplicates (same name, different birthday)
+  const similarDuplicate = existingPersons?.find(p => 
+    p.first_name.toLowerCase() === person.first_name.toLowerCase() &&
+    p.last_name.toLowerCase() === person.last_name.toLowerCase()
+  );
+  
+  if (similarDuplicate) {
+    console.warn(`Warning: A family member named ${person.first_name} ${person.last_name} already exists with a different birthday`);
+  }
 
   const { data, error } = await supabase
     .from('persons')
@@ -358,6 +443,146 @@ export async function addPerson(person: Omit<Person, 'id' | 'created_at' | 'upda
   
   if (error) throw error;
   return data;
+}
+
+// Clean up duplicate entries for current user
+export async function cleanupDuplicates() {
+  try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Get all persons for current user
+    const { data: allPersons, error: fetchError } = await supabase
+      .from('persons')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+
+    if (fetchError) throw fetchError;
+    if (!allPersons || allPersons.length <= 1) return { cleaned: 0, message: 'No duplicates to clean' };
+
+    console.log(`Checking ${allPersons.length} persons for duplicates...`);
+
+    // Group by normalized name (first + last name, case-insensitive)
+    const nameGroups = new Map<string, typeof allPersons>();
+    
+    allPersons.forEach(person => {
+      const normalizedName = `${person.first_name.toLowerCase().trim()}-${person.last_name.toLowerCase().trim()}`;
+      
+      if (!nameGroups.has(normalizedName)) {
+        nameGroups.set(normalizedName, []);
+      }
+      nameGroups.get(normalizedName)!.push(person);
+    });
+
+    let cleanedCount = 0;
+    const duplicatesToRemove: string[] = [];
+
+    // Find duplicates and keep the oldest entry (first created)
+    nameGroups.forEach((persons, name) => {
+      if (persons.length > 1) {
+        console.log(`Found ${persons.length} duplicates for name: ${name}`);
+        console.log('Persons:', persons.map(p => `${p.first_name} ${p.last_name} (${p.id}, created: ${p.created_at})`));
+        
+        // Sort by created_at to keep the oldest
+        persons.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        // Keep the first (oldest) person, mark others for removal
+        for (let i = 1; i < persons.length; i++) {
+          duplicatesToRemove.push(persons[i].id);
+          console.log(`Marking duplicate for removal: ${persons[i].first_name} ${persons[i].last_name} (${persons[i].id})`);
+        }
+        
+        cleanedCount += persons.length - 1;
+      }
+    });
+
+    console.log(`Total duplicates to remove: ${duplicatesToRemove.length}`);
+
+    // Remove duplicates
+    if (duplicatesToRemove.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('persons')
+        .delete()
+        .in('id', duplicatesToRemove);
+
+      if (deleteError) throw deleteError;
+      
+      console.log(`Successfully removed ${duplicatesToRemove.length} duplicate entries`);
+    }
+
+    return {
+      success: true,
+      cleaned: cleanedCount,
+      message: `Cleaned up ${cleanedCount} duplicate entries`
+    };
+
+  } catch (error) {
+    console.error('Error cleaning up duplicates:', error);
+    return {
+      success: false,
+      cleaned: 0,
+      message: error instanceof Error ? error.message : 'Failed to clean up duplicates'
+    };
+  }
+}
+
+// Force cleanup specific duplicates by name
+export async function forceCleanupDuplicatesByName(firstName: string, lastName: string) {
+  try {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Get all matching persons
+    const { data: matchingPersons, error: fetchError } = await supabase
+      .from('persons')
+      .select('*')
+      .eq('user_id', user.id)
+      .ilike('first_name', firstName)
+      .ilike('last_name', lastName)
+      .order('created_at', { ascending: true });
+
+    if (fetchError) throw fetchError;
+    if (!matchingPersons || matchingPersons.length <= 1) return { cleaned: 0, message: 'No duplicates to clean' };
+
+    console.log(`Found ${matchingPersons.length} entries for ${firstName} ${lastName}`);
+
+    // Keep the first (oldest), remove the rest
+    const toKeep = matchingPersons[0];
+    const toRemove = matchingPersons.slice(1);
+    
+    console.log(`Keeping: ${toKeep.first_name} ${toKeep.last_name} (${toKeep.id})`);
+    console.log(`Removing: ${toRemove.map(p => `${p.first_name} ${p.last_name} (${p.id})`).join(', ')}`);
+
+    if (toRemove.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('persons')
+        .delete()
+        .in('id', toRemove.map(p => p.id));
+
+      if (deleteError) throw deleteError;
+      
+      console.log(`Successfully removed ${toRemove.length} duplicate entries for ${firstName} ${lastName}`);
+    }
+
+    return {
+      success: true,
+      cleaned: toRemove.length,
+      message: `Cleaned up ${toRemove.length} duplicate entries for ${firstName} ${lastName}`
+    };
+
+  } catch (error) {
+    console.error('Error force cleaning duplicates:', error);
+    return {
+      success: false,
+      cleaned: 0,
+      message: error instanceof Error ? error.message : 'Failed to clean up duplicates'
+    };
+  }
 }
 
 // Add a new family member with validation
@@ -713,29 +938,227 @@ export async function findPotentialParents(person: Person) {
   };
 }
 
-// Check if user is a child in existing family relationships
-export async function checkFamilyInheritance(userEmail: string) {
+// Enhanced automatic family tree generation based on surname matching
+export async function autoGenerateFamilyTree(person: Person) {
   try {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Search for potential parents across ALL users (not just current user)
+    const { data: allPersons, error: searchError } = await supabase
+      .from('persons')
+      .select('*')
+      .neq('id', person.id) // Exclude the person themselves
+      .ilike('last_name', `%${person.last_name}%`) // More flexible surname search
+      .order('created_at', { ascending: false }); // Get most recent first
+    
+    if (searchError) throw searchError;
+    
+    if (!allPersons || allPersons.length === 0) {
+      return {
+        success: false,
+        message: 'No potential family members found with matching surname',
+        autoAssignedParents: []
+      };
+    }
+
+    console.log(`Found ${allPersons.length} potential family members with surname ${person.last_name}`);
+    console.log('Potential parents found:', allPersons.map(p => `${p.first_name} ${p.last_name} (${p.birthday})`));
+
+    // Calculate birth year for age filtering
+    const personBirthYear = person.birthday ? new Date(person.birthday).getFullYear() : null;
+    
+    // Filter and score potential parents
+    const potentialParents = allPersons.filter(p => {
+      if (!p.birthday || !personBirthYear) return false;
+      
+      const parentBirthYear = new Date(p.birthday).getFullYear();
+      const ageDiff = personBirthYear - parentBirthYear;
+      
+      // Parents should be 15-60 years older (more lenient range)
+      const isParentAge = ageDiff >= 15 && ageDiff <= 60;
+      console.log(`Age check for ${p.first_name} ${p.last_name}: ${ageDiff} years difference - ${isParentAge ? 'VALID' : 'INVALID'}`);
+      
+      return isParentAge;
+    });
+
+    console.log(`Found ${potentialParents.length} potential parents after age filtering`);
+
+    // Score potential parents
+    const scoredParents = potentialParents.map(parent => {
+      let score = 0;
+      
+      // Last name exact match (highest priority)
+      if (parent.last_name.toLowerCase() === person.last_name.toLowerCase()) {
+        score += 100;
+        console.log(`Score boost: Exact last name match for ${parent.first_name} ${parent.last_name}`);
+      }
+      
+      // First name similarity (could indicate naming patterns)
+      const parentFirstLower = parent.first_name.toLowerCase();
+      const personFirstLower = person.first_name.toLowerCase();
+      if (parentFirstLower.includes(personFirstLower.split(' ')[0]) || 
+          personFirstLower.includes(parentFirstLower.split(' ')[0])) {
+        score += 30;
+        console.log(`Score boost: First name similarity for ${parent.first_name} ${parent.last_name}`);
+      }
+      
+      // Birthplace matching
+      if (parent.birthplace && person.birthplace) {
+        const parentPlace = parent.birthplace.toLowerCase();
+        const personPlace = person.birthplace.toLowerCase();
+        if (parentPlace.includes(personPlace) || personPlace.includes(parentPlace)) {
+          score += 25;
+          console.log(`Score boost: Birthplace match for ${parent.first_name} ${parent.last_name}`);
+        }
+      }
+      
+      // Ideal age gap scoring
+      const parentBirthYear = new Date(parent.birthday).getFullYear();
+      const ageDiff = personBirthYear! - parentBirthYear;
+      if (ageDiff >= 20 && ageDiff <= 35) {
+        score += 50; // Ideal parent age
+        console.log(`Score boost: Ideal age gap (${ageDiff} years) for ${parent.first_name} ${parent.last_name}`);
+      } else if (ageDiff >= 15 && ageDiff <= 45) {
+        score += 25; // Acceptable parent age
+        console.log(`Score boost: Acceptable age gap (${ageDiff} years) for ${parent.first_name} ${parent.last_name}`);
+      }
+      
+      console.log(`Final score for ${parent.first_name} ${parent.last_name}: ${score}`);
+      return { parent, score };
+    });
+
+    // Sort by score (highest first)
+    scoredParents.sort((a, b) => b.score - a.score);
+    
+    console.log('Scored parents sorted by score:', scoredParents.map(sp => `${sp.parent.first_name} ${sp.parent.last_name}: ${sp.score}`));
+    
+    // Separate by gender
+    const mothers = scoredParents.filter(p => p.parent.gender === 'female');
+    const fathers = scoredParents.filter(p => p.parent.gender === 'male');
+    const unknown = scoredParents.filter(p => !p.parent.gender || p.parent.gender === 'other');
+    
+    console.log(`Found ${mothers.length} mothers, ${fathers.length} fathers, ${unknown.length} unknown gender`);
+    
+    // Auto-assign parents if high-confidence matches found (lowered threshold)
+    const autoAssignedParents = [];
+    const updates = [];
+    
+    // Assign mother if found with reasonable confidence (score >= 75)
+    if (mothers.length > 0 && mothers[0].score >= 75) {
+      const mother = mothers[0].parent;
+      autoAssignedParents.push({ type: 'mother', person: mother, confidence: mothers[0].score });
+      updates.push({ 
+        id: person.id, 
+        mother_id: mother.id 
+      });
+      console.log(`Auto-assigning mother: ${mother.first_name} ${mother.last_name} (confidence: ${mothers[0].score})`);
+    }
+    
+    // Assign father if found with reasonable confidence (score >= 75)
+    if (fathers.length > 0 && fathers[0].score >= 75) {
+      const father = fathers[0].parent;
+      autoAssignedParents.push({ type: 'father', person: father, confidence: fathers[0].score });
+      updates.push({ 
+        id: person.id, 
+        father_id: father.id 
+      });
+      console.log(`Auto-assigning father: ${father.first_name} ${father.last_name} (confidence: ${fathers[0].score})`);
+    }
+    
+    // Apply updates if any parents were auto-assigned
+    if (updates.length > 0) {
+      console.log(`Applying updates:`, updates);
+      const { error: updateError } = await supabase
+        .from('persons')
+        .update(updates[0]) // Update the person with parent assignments
+        .eq('id', person.id);
+        
+      if (updateError) throw updateError;
+      
+      console.log(`Successfully auto-assigned ${updates.length} parents for ${person.first_name} ${person.last_name}`);
+    } else {
+      console.log(`No high-confidence parent matches found for ${person.first_name} ${person.last_name}`);
+    }
+    
+    return {
+      success: true,
+      message: `Found ${allPersons.length} potential family members, auto-assigned ${autoAssignedParents.length} parents`,
+      autoAssignedParents,
+      allPotentialParents: scoredParents.slice(0, 10),
+      totalMatches: allPersons.length
+    };
+    
+  } catch (error) {
+    console.error('Error in autoGenerateFamilyTree:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to auto-generate family tree',
+      autoAssignedParents: []
+    };
+  }
+}
+
+export async function checkFamilyInheritance(userEmail: string) {
+  try {
     // Check for pending family invitations
     const { data: invitations, error: invitationError } = await supabase
       .from('family_invitations')
       .select('*')
       .eq('invited_email', userEmail.toLowerCase())
       .eq('status', 'pending');
-    
-    if (invitationError && !invitationError.message?.includes('does not exist')) {
-      throw invitationError;
+
+    if (invitationError) {
+      const handled = handleTableError(invitationError, 'family_invitations');
+      if (handled.handled) {
+        console.log('Family invitations table not available, continuing with basic functionality');
+        return {
+          hasInvitations: false,
+          invitations: [],
+          familyMatches: [],
+          error: null
+        };
+      }
+      throw new Error(`Failed to check invitations: ${invitationError.message}`);
+    }
+
+    // Check for potential family matches based on email domain or patterns
+    const { data: allPersons, error: personsError } = await supabase
+      .from('persons')
+      .select('first_name, last_name, user_id, created_at')
+      .neq('user_id', '00000000-0000-0000-0000-000000000000'); // Exclude system users
+
+    if (personsError) {
+      const handled = handleTableError(personsError, 'persons');
+      if (handled.handled) {
+        return {
+          hasInvitations: invitations && invitations.length > 0,
+          invitations: invitations || [],
+          familyMatches: [],
+          error: null
+        };
+      }
+      throw new Error(`Failed to check family matches: ${personsError.message}`);
+    }
+
+    // Find potential family matches
+    const familyMatches = [];
+    if (allPersons && allPersons.length > 0) {
+      // Simple matching logic - can be enhanced
+      const emailDomain = userEmail.split('@')[1];
+      familyMatches.push(...allPersons.filter(person => 
+        person.first_name && person.last_name // Basic filter
+      ));
     }
 
     return {
-      hasInvitations: (invitations && invitations.length > 0) || false,
+      hasInvitations: invitations && invitations.length > 0,
       invitations: invitations || [],
-      familyMatches: []
+      familyMatches: familyMatches.slice(0, 5), // Limit to 5 matches
+      error: null
     };
+
   } catch (error) {
     console.error('Error checking family inheritance:', error);
     return {

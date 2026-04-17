@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Person } from '../../types/Person';
+import { Users, GitBranch, Camera, Dna, Sparkles, BarChart3 } from 'lucide-react';
 
 export interface DashboardStats {
   totalMembers: number;
@@ -167,7 +168,7 @@ export const useDashboardData = (persons: Person[]) => {
         id: 'add-member',
         title: 'Add Family Member',
         description: 'Add a new person to your family tree',
-        icon: require('lucide-react').Users,
+        icon: Users,
         color: 'blue',
         count: stats.totalMembers
       },
@@ -175,7 +176,7 @@ export const useDashboardData = (persons: Person[]) => {
         id: 'view-tree',
         title: 'View Family Tree',
         description: 'Visualize family connections',
-        icon: require('lucide-react').GitBranch,
+        icon: GitBranch,
         color: 'green',
         count: stats.completeFamilies
       },
@@ -183,7 +184,7 @@ export const useDashboardData = (persons: Person[]) => {
         id: 'upload-photo',
         title: 'Upload Photos',
         description: 'Add and tag family photos',
-        icon: require('lucide-react').Camera,
+        icon: Camera,
         color: 'purple',
         count: stats.photos,
         badge: 'New'
@@ -192,21 +193,21 @@ export const useDashboardData = (persons: Person[]) => {
         id: 'dna-analysis',
         title: 'DNA Analysis',
         description: 'Discover genetic relationships',
-        icon: require('lucide-react').Dna,
+        icon: Dna,
         color: 'indigo'
       },
       {
         id: 'generate-story',
         title: 'Generate Stories',
         description: 'Create AI-powered family narratives',
-        icon: require('lucide-react').Sparkles,
+        icon: Sparkles,
         color: 'amber'
       },
       {
         id: 'analytics',
         title: 'Analytics',
         description: 'View family statistics and insights',
-        icon: require('lucide-react').BarChart3,
+        icon: BarChart3,
         color: 'orange'
       }
     ];

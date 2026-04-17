@@ -15,6 +15,7 @@ import { CollaborativeResearch } from '../CollaborativeResearch';
 import { PrivacyFramework } from '../PrivacyFramework';
 import { SourceCitationManager } from '../SourceCitationManager';
 import { BackupManager } from '../BackupManager';
+import { FamilyMembersCRUD } from '../FamilyMembersCRUD';
 import { PersonCardsSkeleton } from '../ui/SkeletonLoader';
 import { Users } from 'lucide-react';
 
@@ -35,32 +36,14 @@ export const AppRoutes = ({ persons, dataLoading, onPersonAdded }: AppRoutesProp
       <Route 
         path="/persons" 
         element={
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Family Members</h2>
-              <PersonForm onPersonAdded={onPersonAdded} />
-            </div>
-            {dataLoading ? (
-              <PersonCardsSkeleton />
-            ) : persons.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
-                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No family members yet</h3>
-                <p className="text-gray-600">Click "Add Person" to start building your family tree!</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {persons.map(person => (
-                  <PersonCard
-                    key={person.id}
-                    person={person}
-                    allPersons={persons}
-                    onUpdate={onPersonAdded}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          dataLoading ? (
+            <PersonCardsSkeleton />
+          ) : (
+            <FamilyMembersCRUD 
+              persons={persons} 
+              onPersonsChange={onPersonAdded} 
+            />
+          )
         }
       />
       <Route path="/tree" element={

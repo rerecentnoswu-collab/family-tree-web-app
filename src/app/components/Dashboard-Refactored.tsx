@@ -7,7 +7,10 @@ import {
   GitBranch, 
   Camera, 
   List,
-  Grid
+  Grid,
+  MapPin,
+  Target,
+  Activity
 } from 'lucide-react';
 import { StatsCard } from './dashboard/StatsCard';
 import { QuickAction } from './dashboard/QuickAction';
@@ -100,7 +103,7 @@ export function Dashboard({ persons }: DashboardProps) {
         <StatsCard
           title="Countries"
           value={stats.countries}
-          icon={require('lucide-react').MapPin}
+          icon={MapPin}
           color="indigo"
           trend="up"
           trendValue="3%"
@@ -125,7 +128,7 @@ export function Dashboard({ persons }: DashboardProps) {
         <StatsCard
           title="Average Age"
           value={stats.averageAge}
-          icon={require('lucide-react').Target}
+          icon={Target}
           color="blue"
           subtitle="years"
         />
@@ -133,7 +136,7 @@ export function Dashboard({ persons }: DashboardProps) {
         <StatsCard
           title="Root Members"
           value={stats.rootMembers}
-          icon={require('lucide-react').Target}
+          icon={Target}
           color="green"
           subtitle="Members without known parents"
         />
@@ -141,7 +144,7 @@ export function Dashboard({ persons }: DashboardProps) {
         <StatsCard
           title="Researchers"
           value={stats.activeResearchers}
-          icon={require('lucide-react').Activity}
+          icon={Activity}
           color="rose"
           subtitle="Online now"
         />

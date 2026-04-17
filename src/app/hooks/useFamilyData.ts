@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoMapFamilyTree, type Person as DBPerson } from '../../../../utils/supabase/client';
+import { getPersons, initializeDatabase, checkFamilyInheritance, acceptFamilyInvitation, autoGenerateFamilyTree, cleanupDuplicates, forceCleanupDuplicatesByName, setupDatabaseTables, type Person as DBPerson } from '../../../utils/supabase/client';
+import { findCrossAccountFamilyMembers, suggestCrossAccountConnections, type CrossAccountFamilyMember } from '../../../utils/supabase/familyMapping';
 import { Person } from '../types/Person';
 import { useAuth } from './useAuth';
 
@@ -10,14 +11,15 @@ const dbToAppPerson = (dbPerson: DBPerson): Person => ({
   lastName: dbPerson.last_name,
   birthday: dbPerson.birthday || undefined,
   birthplace: dbPerson.birthplace,
+  gender: dbPerson.gender,
   motherId: dbPerson.mother_id,
   fatherId: dbPerson.father_id,
-  spouse_ids: [], // Default to empty array since DB doesn't have this field
-  gender: dbPerson.gender,
-  events: [], // Default to empty array since DB doesn't have this field
+  occupation: dbPerson.occupation,
+  deathDate: dbPerson.death_date,
+  deathPlace: dbPerson.death_place
 });
 
-export interface UseFamilyDataReturn {
+interface UseFamilyDataReturn {
   persons: Person[];
   loading: boolean;
   error: string | null;
@@ -30,6 +32,13 @@ export interface UseFamilyDataReturn {
     error?: string;
   } | null;
   acceptInvitation: (invitationId: string) => Promise<void>;
+  crossAccountFamilyMembers: CrossAccountFamilyMember[];
+  crossAccountConnections: {
+    suggestedParents: CrossAccountFamilyMember[];
+    suggestedSiblings: CrossAccountFamilyMember[];
+    suggestedChildren: CrossAccountFamilyMember[];
+    confidence: number;
+  };
 }
 
 export const useFamilyData = (): UseFamilyDataReturn => {
@@ -39,6 +48,18 @@ export const useFamilyData = (): UseFamilyDataReturn => {
   const [error, setError] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [familyInheritance, setFamilyInheritance] = useState<UseFamilyDataReturn['familyInheritance']>(null);
+  const [crossAccountFamilyMembers, setCrossAccountFamilyMembers] = useState<CrossAccountFamilyMember[]>([]);
+  const [crossAccountConnections, setCrossAccountConnections] = useState<{
+    suggestedParents: CrossAccountFamilyMember[];
+    suggestedSiblings: CrossAccountFamilyMember[];
+    suggestedChildren: CrossAccountFamilyMember[];
+    confidence: number;
+  }>({
+    suggestedParents: [],
+    suggestedSiblings: [],
+    suggestedChildren: [],
+    confidence: 0
+  });
 
   const fetchPersons = async () => {
     if (!isAuthenticated || !user) {
@@ -49,73 +70,176 @@ export const useFamilyData = (): UseFamilyDataReturn => {
     setLoading(true);
     setError(null);
     setNeedsSetup(false);
-    
+
     try {
-      console.log(' Fetching persons from database...');
-      
-      // Initialize database with authenticated user
+      // Initialize database if needed
       const initResult = await initializeDatabase();
-      
       if (!initResult.success) {
-        console.error(' Database initialization failed:', initResult);
-        if (initResult.needsSetup) {
-          setNeedsSetup(true);
-        }
-        setError(initResult.error || 'Database error');
-        setLoading(false);
+        setError(initResult.message);
+        setNeedsSetup(true);
         return;
       }
 
-      console.log(' Fetching persons data...');
-      const data = await getPersons();
+      // Setup missing database tables gracefully
+      try {
+        await setupDatabaseTables();
+      } catch (setupError) {
+        console.log('Database setup failed, continuing with basic functionality:', setupError);
+      }
+
+      // Check for family inheritance
+      const inheritanceResult = await checkFamilyInheritance(user.email || '');
       
+      if (inheritanceResult.hasInvitations) {
+        console.log('User has family invitations available');
+        setFamilyInheritance(inheritanceResult);
+      } else {
+        console.log('No family invitations found');
+        setFamilyInheritance(null);
+      }
+
+      // Get current user's persons
+      const { data, error: fetchError } = await getPersons();
+      
+      if (fetchError) {
+        console.error('Error fetching persons:', fetchError);
+        setError(fetchError.message);
+        return;
+      }
+
       if (!data || data.length === 0) {
-        console.log(' No persons found in database - checking for family inheritance');
-        setPersons([]); // Start with empty family tree
+        console.log('No persons found for user');
+        setPersons([]);
+        setFamilyInheritance(null);
+        return;
+      }
+
+      console.log(` Successfully fetched ${data.length} persons for user ${user.id}`);
+      console.log('Raw data from database:', data);
+      const mappedPersons = data.map(dbToAppPerson);
+      console.log('Mapped persons:', mappedPersons);
+      
+      // Force clean up specific duplicates first
+      try {
+        // Force cleanup John Marc Centino duplicates
+        const johnMarcCleanup = await forceCleanupDuplicatesByName('John Marc', 'Centino');
+        console.log('John Marc cleanup result:', johnMarcCleanup);
         
-        // Check for family inheritance opportunities
-        if (user.email) {
+        // Force cleanup Reycel Centino duplicates
+        const reycelCleanup = await forceCleanupDuplicatesByName('Reycel', 'Centino');
+        console.log('Reycel cleanup result:', reycelCleanup);
+        
+        // Run general cleanup as well
+        const cleanupResult = await cleanupDuplicates();
+        console.log('General cleanup result:', cleanupResult);
+        
+        if ((johnMarcCleanup.success && johnMarcCleanup.cleaned > 0) || 
+            (reycelCleanup.success && reycelCleanup.cleaned > 0) ||
+            (cleanupResult.success && cleanupResult.cleaned > 0)) {
+          console.log('Duplicates were cleaned up, refetching data...');
+          // Refetch data after cleanup
+          await fetchPersons();
+          return;
+        }
+      } catch (cleanupError) {
+        console.log('Cleanup failed:', cleanupError);
+      }
+      
+      // Trigger automatic family tree generation for persons without parents
+      for (const person of mappedPersons) {
+        if (!person.motherId && !person.fatherId && person.birthday && person.lastName) {
+          console.log(`Running automatic family tree generation for ${person.firstName} ${person.lastName}`);
           try {
-            // First, try automatic family mapping based on user's name
-            const userFirstName = user.user_metadata?.first_name || '';
-            const userMiddleName = user.user_metadata?.middle_name || '';
-            const userLastName = user.user_metadata?.last_name || '';
+            const autoGenResult = await autoGenerateFamilyTree({
+              id: person.id,
+              first_name: person.firstName,
+              middle_name: person.middleName,
+              last_name: person.lastName,
+              birthday: person.birthday,
+              birthplace: person.birthplace,
+              gender: person.gender,
+              mother_id: person.motherId,
+              father_id: person.fatherId
+            } as DBPerson);
             
-            if (userFirstName && userLastName) {
-              console.log('🔍 Attempting automatic family mapping...');
-              try {
-                const autoMapResult = await autoMapFamilyTree(userFirstName, userMiddleName, userLastName, user.email);
-                if (autoMapResult.success && 'familyMembersConnected' in autoMapResult) {
-                  console.log(`✅ Automatic family mapping successful! Connected to ${autoMapResult.familyMembersConnected} family members`);
-                  // Refetch data to get the mapped family tree
-                  await fetchPersons();
-                  return;
-                } else {
-                  console.log(`⚠️ Automatic mapping failed (${autoMapResult.confidence}% confidence). Checking invitations...`);
-                }
-              } catch (autoMapError) {
-                console.log('❌ Automatic mapping error, falling back to invitation check:', autoMapError);
-              }
+            if (autoGenResult.success && autoGenResult.autoAssignedParents.length > 0) {
+              console.log(`Auto-assigned parents for ${person.firstName}:`, autoGenResult.autoAssignedParents);
+              // Refetch data to get updated relationships
+              await fetchPersons();
+              return; // Exit early since we're refetching
             }
-            
-            // Fallback to invitation-based inheritance
-            const inheritanceResult = await checkFamilyInheritance(user.email);
-            setFamilyInheritance(inheritanceResult);
-            console.log(' Family inheritance check completed:', inheritanceResult);
-          } catch (inheritanceError) {
-            console.error(' Error checking family inheritance:', inheritanceError);
-            setFamilyInheritance({
-              hasInvitations: false,
-              invitations: [],
-              familyMatches: [],
-              error: inheritanceError instanceof Error ? inheritanceError.message : 'Failed to check family inheritance'
-            });
+          } catch (autoGenError) {
+            console.log('Auto-generation failed for', person.firstName, ':', autoGenError);
           }
         }
-      } else {
-        console.log(` Successfully fetched ${data.length} persons for user ${user.id}`);
-        setPersons(data.map(dbToAppPerson));
-        setFamilyInheritance(null); // No inheritance needed if user has data
+      }
+      
+      setPersons(mappedPersons);
+      setFamilyInheritance(null); // No inheritance needed if user has data
+      
+      // Discover cross-account family members
+      try {
+        console.log('Discovering cross-account family members...');
+        const allCrossAccountMembers: CrossAccountFamilyMember[] = [];
+        
+        for (const person of mappedPersons) {
+          const crossAccountMembers = await findCrossAccountFamilyMembers(person.id);
+          allCrossAccountMembers.push(...crossAccountMembers);
+        }
+        
+        // Remove duplicates
+        const uniqueMembers = allCrossAccountMembers.filter((member, index, self) =>
+          index === self.findIndex(m => m.person.id === member.person.id)
+        );
+        
+        setCrossAccountFamilyMembers(uniqueMembers);
+        console.log(`Found ${uniqueMembers.length} cross-account family members`);
+        
+        // Get suggested connections for each person
+        const allConnections = {
+          suggestedParents: [] as CrossAccountFamilyMember[],
+          suggestedSiblings: [] as CrossAccountFamilyMember[],
+          suggestedChildren: [] as CrossAccountFamilyMember[],
+          confidence: 0
+        };
+        
+        for (const person of mappedPersons) {
+          const connections = await suggestCrossAccountConnections(person.id);
+          allConnections.suggestedParents.push(...connections.suggestedParents);
+          allConnections.suggestedSiblings.push(...connections.suggestedSiblings);
+          allConnections.suggestedChildren.push(...connections.suggestedChildren);
+        }
+        
+        // Remove duplicates and calculate average confidence
+        const uniqueParents = allConnections.suggestedParents.filter((member, index, self) =>
+          index === self.findIndex(m => m.person.id === member.person.id)
+        );
+        const uniqueSiblings = allConnections.suggestedSiblings.filter((member, index, self) =>
+          index === self.findIndex(m => m.person.id === member.person.id)
+        );
+        const uniqueChildren = allConnections.suggestedChildren.filter((member, index, self) =>
+          index === self.findIndex(m => m.person.id === member.person.id)
+        );
+        
+        const allConfidenceScores = [
+          ...uniqueParents.map(m => m.confidence),
+          ...uniqueSiblings.map(m => m.confidence),
+          ...uniqueChildren.map(m => m.confidence)
+        ];
+        
+        const avgConfidence = allConfidenceScores.length > 0 
+          ? allConfidenceScores.reduce((sum, score) => sum + score, 0) / allConfidenceScores.length 
+          : 0;
+        
+        setCrossAccountConnections({
+          suggestedParents: uniqueParents,
+          suggestedSiblings: uniqueSiblings,
+          suggestedChildren: uniqueChildren,
+          confidence: Math.round(avgConfidence)
+        });
+        
+      } catch (crossAccountError) {
+        console.log('Cross-account discovery failed:', crossAccountError);
       }
     } catch (error) {
       console.error(' Error fetching persons:', error);
@@ -131,7 +255,7 @@ export const useFamilyData = (): UseFamilyDataReturn => {
       const result = await acceptFamilyInvitation(invitationId);
       
       if (result.success) {
-        console.log(` Successfully inherited ${result.inheritedMembers} family members`);
+        console.log(` Successfully accepted family invitation`);
         // Refetch persons to get the updated family tree
         await fetchPersons();
       }
@@ -159,6 +283,8 @@ export const useFamilyData = (): UseFamilyDataReturn => {
     needsSetup,
     refetch: fetchPersons,
     familyInheritance,
-    acceptInvitation
+    acceptInvitation,
+    crossAccountFamilyMembers,
+    crossAccountConnections
   };
 };

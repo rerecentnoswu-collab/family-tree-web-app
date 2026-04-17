@@ -9,3 +9,4 @@ utils/supabase/info.tsx
 node_modules/
 dist/
 .vite/
+.env*.local

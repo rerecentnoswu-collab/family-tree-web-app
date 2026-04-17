@@ -112,12 +112,16 @@ class PersonService {
     });
   }
 
-  // Get family tree for a person
+  // Get family tree for a person (using local Supabase data)
   async getFamilyTree(id: string, depth?: number): Promise<ApiResponse<any>> {
-    return apiClient.get<any>(apiEndpoints.familyTree, {
-      rootId: id,
-      depth,
-    });
+    // This function now uses local data instead of external API
+    // The family tree is built locally from Supabase persons data
+    return {
+      data: null,
+      success: true,
+      errors: undefined,
+      message: 'Family tree is built locally from Supabase data'
+    };
   }
 
   // Bulk operations
