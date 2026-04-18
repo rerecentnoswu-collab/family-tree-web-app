@@ -171,7 +171,25 @@ export const useMobileOptimizedFamilyData = (user: any, pageSize = 20): UseMobil
         }
       } else {
         console.log(` Successfully fetched ${data.length} persons for user ${user.id}`);
-        const mappedPersons = data.map(dbToAppPerson);
+        let mappedPersons = data.map(dbToAppPerson);
+        
+        // Remove duplicates by name for mobile optimization
+        const seen = new Set<string>();
+        const duplicates: string[] = [];
+        
+        mappedPersons = mappedPersons.filter(person => {
+          const personKey = `${person.firstName?.toLowerCase()}|${person.lastName?.toLowerCase()}`;
+          if (seen.has(personKey)) {
+            duplicates.push(`${person.firstName} ${person.lastName}`);
+            return false;
+          }
+          seen.add(personKey);
+          return true;
+        });
+        
+        if (duplicates.length > 0) {
+          console.log('Mobile: Removing duplicates by name:', duplicates);
+        }
         
         if (isLoadMore) {
           setPersons(prev => [...prev, ...mappedPersons]);
