@@ -187,9 +187,12 @@ export const useFamilyData = (): UseFamilyDataReturn => {
           allCrossAccountMembers.push(...crossAccountMembers);
         }
         
-        // Remove duplicates
+        // Remove duplicates by person name (more reliable for cross-account scenarios)
         const uniqueMembers = allCrossAccountMembers.filter((member, index, self) =>
-          index === self.findIndex(m => m.person.id === member.person.id)
+          index === self.findIndex(m => 
+            m.person.first_name?.toLowerCase() === member.person.first_name?.toLowerCase() &&
+            m.person.last_name?.toLowerCase() === member.person.last_name?.toLowerCase()
+          )
         );
         
         setCrossAccountFamilyMembers(uniqueMembers);

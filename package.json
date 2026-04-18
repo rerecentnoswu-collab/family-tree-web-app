@@ -1,7 +1,7 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "family-tree-web-app",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "build": "vite build",
@@ -16,7 +16,10 @@
     "lint": "echo 'Linting not configured yet'",
     "type-check": "tsc --noEmit",
     "setup-env": "node scripts/validate-env.js",
-    "validate-env": "node scripts/validate-env.js"
+    "validate-env": "node scripts/validate-env.js",
+    "vercel-build": "vite build",
+    "vercel-dev": "vite",
+    "deploy": "vercel --prod"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

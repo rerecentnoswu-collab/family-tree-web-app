@@ -26,21 +26,22 @@ export function FamilyTree({ persons, onPersonClick, crossAccountFamilyMembers }
       console.log(`Adding ${crossAccountPersons.length} cross-account family members to tree`);
     }
     
-    // Remove duplicates based on person ID (most reliable method)
+    // Remove duplicates based on person name (for cross-account scenarios)
     const seen = new Set<string>();
     const duplicates: string[] = [];
     
     const filteredPersons = combinedPersons.filter(person => {
-      if (seen.has(person.id)) {
+      const personKey = `${person.firstName?.toLowerCase()}|${person.lastName?.toLowerCase()}`;
+      if (seen.has(personKey)) {
         duplicates.push(`${person.firstName} ${person.lastName} (ID: ${person.id})`);
         return false;
       }
-      seen.add(person.id);
+      seen.add(personKey);
       return true;
     });
     
     if (duplicates.length > 0) {
-      console.log('Removing duplicates by ID:', duplicates);
+      console.log('Removing duplicates by name:', duplicates);
     }
     
     return filteredPersons;
