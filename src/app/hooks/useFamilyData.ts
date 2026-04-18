@@ -145,34 +145,9 @@ export const useFamilyData = (): UseFamilyDataReturn => {
         console.log('Cleanup failed:', cleanupError);
       }
       
-      // Trigger automatic family tree generation for persons without parents
-      for (const person of mappedPersons) {
-        if (!person.motherId && !person.fatherId && person.birthday && person.lastName) {
-          console.log(`Running automatic family tree generation for ${person.firstName} ${person.lastName}`);
-          try {
-            const autoGenResult = await autoGenerateFamilyTree({
-              id: person.id,
-              first_name: person.firstName,
-              middle_name: person.middleName,
-              last_name: person.lastName,
-              birthday: person.birthday,
-              birthplace: person.birthplace,
-              gender: person.gender,
-              mother_id: person.motherId,
-              father_id: person.fatherId
-            } as DBPerson);
-            
-            if (autoGenResult.success && autoGenResult.autoAssignedParents.length > 0) {
-              console.log(`Auto-assigned parents for ${person.firstName}:`, autoGenResult.autoAssignedParents);
-              // Refetch data to get updated relationships
-              await fetchPersons();
-              return; // Exit early since we're refetching
-            }
-          } catch (autoGenError) {
-            console.log('Auto-generation failed for', person.firstName, ':', autoGenError);
-          }
-        }
-      }
+      // Automatic family tree generation disabled to prevent mock data creation
+      // Following best practices - no auto-generation of family members
+      console.log('Auto-generation disabled - using real family data only');
       
       setPersons(mappedPersons);
       setFamilyInheritance(null); // No inheritance needed if user has data

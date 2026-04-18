@@ -141,19 +141,9 @@ export const useMobileOptimizedFamilyData = (user: any, pageSize = 20): UseMobil
               const userMiddleName = user.user_metadata?.middle_name || '';
               const userLastName = user.user_metadata?.last_name || '';
               
-              if (userFirstName && userLastName) {
-                console.log(' Attempting automatic family mapping...');
-                try {
-                  const autoMapResult = await autoMapFamilyTree(userFirstName, userMiddleName, userLastName, user.email!);
-                  if (autoMapResult.success && 'familyMembersConnected' in autoMapResult) {
-                    console.log(` Automatic family mapping successful! Connected to ${autoMapResult.familyMembersConnected} family members`);
-                    await fetchPersons();
-                    return;
-                  }
-                } catch (autoMapError) {
-                  console.log(' Automatic mapping error, falling back to invitation check:', autoMapError);
-                }
-              }
+              // Auto-mapping disabled to prevent mock data creation
+              // Following best practices - no automatic family member generation
+              console.log('Auto-mapping disabled - using real family data only');
               
               // Fallback to invitation-based inheritance
               const inheritanceResult = await checkFamilyInheritance(user.email!);
