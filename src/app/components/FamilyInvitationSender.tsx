@@ -86,7 +86,7 @@ export const FamilyInvitationSender = ({ persons, onInvitationSent }: FamilyInvi
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Invite Family Members</h3>
-              <p className="text-gray-600">Connect with family members by sending them invitations</p>
+              <p className="text-gray-600">Send invitations to connect with family members and grow your family tree</p>
             </div>
           </div>
           <button
@@ -140,20 +140,24 @@ export const FamilyInvitationSender = ({ persons, onInvitationSent }: FamilyInvi
         {/* Select Family Member */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Family Member
+            Select Family Member to Invite
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {persons.map((person) => (
-              <button
+              <div
                 key={person.id}
                 onClick={() => setSelectedPerson(person)}
-                className={`p-3 rounded-lg border-2 transition-all text-left ${
+                className={`p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-all ${
                   selectedPerson?.id === person.id
                     ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                    : ''
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+                    <div className="text-white font-medium">
+                      {person.firstName?.charAt(0)}.{person.lastName?.charAt(0)}
+                    </div>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
                     person.gender === 'female' 
                       ? 'bg-gradient-to-br from-pink-500 to-rose-600' 
@@ -248,16 +252,22 @@ export const FamilyInvitationSender = ({ persons, onInvitationSent }: FamilyInvi
         <div className="flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
           <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-1">How it works:</p>
-            <ul className="space-y-1 text-blue-700">
-              <li>1. The invitation will be sent to the email address</li>
-              <li>2. When they sign up, they'll see the invitation</li>
-              <li>3. After accepting, they'll get your family tree data</li>
-              <li>4. Each person gets their own copy for privacy</li>
-            </ul>
-          </div>
+    </div>
+
+    {/* Information Box */}
+    <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+        <div className="text-sm text-blue-800">
+          <p className="font-semibold mb-1">How it works:</p>
+          <ul className="space-y-1 text-blue-700">
+            <li>1. The invitation will be sent to the email address</li>
+            <li>2. When they sign up, they'll see the invitation</li>
+            <li>3. After accepting, they'll get your family tree data</li>
+            <li>4. Each person gets their own copy for privacy</li>
+          </ul>
         </div>
       </div>
     </div>
-  );
-};
+  </div>
+);
